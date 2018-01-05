@@ -1,5 +1,5 @@
-
-    musl libc
+musl libc with SGX LKL modifications
+====================================
 
 musl, pronounced like the word "mussel", is an MIT-licensed
 implementation of the standard C library targetting the Linux syscall

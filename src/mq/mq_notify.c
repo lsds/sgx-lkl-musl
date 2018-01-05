@@ -6,6 +6,8 @@
 #include <unistd.h>
 #include "syscall.h"
 
+# if 0
+
 struct args {
 	pthread_barrier_t barrier;
 	int sock;
@@ -70,4 +72,12 @@ int mq_notify(mqd_t mqd, const struct sigevent *sev)
 	}
 
 	return 0;
+}
+
+#endif
+
+int mq_notify(mqd_t mqd, const struct sigevent *sev)
+{
+        errno = ENOSYS;
+        return -1;
 }

@@ -3,6 +3,9 @@
 #include "pthread_impl.h"
 #include "syscall.h"
 #include "libc.h"
+#include <lthread.h>
+
+#if 0
 
 __attribute__((__visibility__("hidden")))
 long __cancel(), __syscall_cp_asm(), __syscall_cp_c();
@@ -83,15 +86,9 @@ static void init_cancellation()
 	memset(&sa.sa_mask, -1, _NSIG/8);
 	__libc_sigaction(SIGCANCEL, &sa, 0);
 }
-
+#endif
 int pthread_cancel(pthread_t t)
 {
-	static int init;
-	if (!init) {
-		init_cancellation();
-		init = 1;
-	}
-	a_store(&t->cancel, 1);
-	if (t == pthread_self() && !t->cancelasync) return 0;
-	return pthread_kill(t, SIGCANCEL);
+        lthread_cancel(t);
+        return 0;
 }

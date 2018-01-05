@@ -1,6 +1,7 @@
 #ifndef _PTHREAD_IMPL_H
 #define _PTHREAD_IMPL_H
 
+#include "lthread_int.h"
 #include <pthread.h>
 #include <signal.h>
 #include <errno.h>
@@ -12,8 +13,8 @@
 
 #define pthread __pthread
 
-struct pthread {
-	struct pthread *self;
+struct schedctx {
+	struct schedctx *self;
 	void **dtv, *unused1, *unused2;
 	uintptr_t sysinfo;
 	uintptr_t canary, canary2;
@@ -32,12 +33,7 @@ struct pthread {
 	void **tsd;
 	pthread_attr_t attr;
 	volatile int dead;
-	struct {
-		volatile void *volatile head;
-		long off;
-		volatile void *volatile pending;
-	} robust_list;
-	int unblock_cancel;
+        int unblock_cancel;
 	volatile int timer_id;
 	locale_t locale;
 	volatile int killlock[2];
@@ -49,6 +45,7 @@ struct pthread {
 	void *stdio_locks;
 	uintptr_t canary_at_end;
 	void **dtv_copy;
+        struct lthread_sched sched;
 };
 
 struct __timer {
@@ -130,8 +127,34 @@ static inline void __wake(volatile void *addr, int cnt, int priv)
 {
 	if (priv) priv = 128;
 	if (cnt<0) cnt = INT_MAX;
-	__syscall(SYS_futex, addr, FUTEX_WAKE|priv, cnt) != -ENOSYS ||
-	__syscall(SYS_futex, addr, FUTEX_WAKE, cnt);
+	__syscall(SYS_futex, (int*)addr, FUTEX_WAKE|priv, cnt, 0, 0, 0) != -ENOSYS ||
+	__syscall(SYS_futex, (int*)addr, FUTEX_WAKE, cnt, 0, 0, 0);
+}
+
+static inline struct lthread_sched*
+lthread_get_sched()
+{
+    struct schedctx *c = __scheduler_self();
+    return &c->sched;
+}
+
+
+static inline uint64_t timespec_to_lttimeout(const struct timespec *at)
+{
+        struct timeval tv;
+        uint64_t now, then;
+        if (at) {
+                gettimeofday(&tv, NULL);
+                now = tv.tv_sec * 1000 + tv.tv_usec / 1000;
+                then = at->tv_sec * 1000 + at->tv_nsec / 1000000;
+                return then > now ? then - now : WAIT_TIMEOUT;
+        }
+        return WAIT_LIMITLESS;
+}
+
+static inline struct lthread *__pthread_self()
+{
+        return lthread_self();
 }
 
 void __acquire_ptc(void);
@@ -141,6 +164,8 @@ void __inhibit_ptc(void);
 void __block_all_sigs(void *);
 void __block_app_sigs(void *);
 void __restore_sigs(void *);
+
+void (* segv_handler) (int sig, siginfo_t *si, void *unused);
 
 #define DEFAULT_STACK_SIZE 81920
 #define DEFAULT_GUARD_SIZE PAGE_SIZE

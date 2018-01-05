@@ -7,7 +7,6 @@
 _Noreturn void abort(void)
 {
 	raise(SIGABRT);
-	__block_all_sigs(0);
 	a_crash();
 	raise(SIGKILL);
 	_Exit(127);

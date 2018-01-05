@@ -114,3 +114,21 @@ static inline int a_ctz_64(uint64_t x)
 	__asm__( "bsf %1,%0" : "=r"(x) : "r"(x) );
 	return x;
 }
+
+#define a_cas_64 a_cas_64
+static inline uint64_t a_cas_64(volatile uint64_t *p,uint64_t  t, uint64_t s)
+{
+	__asm__ __volatile__ (
+		"lock ; cmpxchg %3, %1"
+		: "=a"(t), "=m"(*p) : "a"(t), "r"(s) : "memory" );
+	return t;
+}
+
+#define a_fetch_add_uint a_fetch_add_uint
+static inline uint32_t a_fetch_add_uint(volatile uint32_t *p, uint32_t v)
+{
+	__asm__ __volatile__(
+		"lock ; xadd %0, %1"
+		: "=r"(v), "=m"(*p) : "0"(v) : "memory" );
+	return v;
+}

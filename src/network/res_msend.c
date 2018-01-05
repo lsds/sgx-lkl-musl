@@ -14,11 +14,6 @@
 #include "syscall.h"
 #include "lookup.h"
 
-static void cleanup(void *p)
-{
-	__syscall(SYS_close, (intptr_t)p);
-}
-
 static unsigned long mtime()
 {
 	struct timespec ts;
@@ -82,7 +77,6 @@ int __res_msend_rc(int nqueries, const unsigned char *const *queries,
 	 * yield either no reply (indicated by zero length) or an answer
 	 * packet which is up to the caller to interpret. */
 
-	pthread_cleanup_push(cleanup, (void *)(intptr_t)fd);
 	pthread_setcancelstate(cs, 0);
 
 	/* Convert any IPv4 addresses in a mixed environment to v4-mapped */
@@ -170,7 +164,7 @@ int __res_msend_rc(int nqueries, const unsigned char *const *queries,
 		}
 	}
 out:
-	pthread_cleanup_pop(1);
+        __syscall(SYS_close, (intptr_t)fd);
 
 	return 0;
 }

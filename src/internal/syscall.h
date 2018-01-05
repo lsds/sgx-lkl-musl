@@ -1,8 +1,15 @@
 #ifndef _INTERNAL_SYSCALL_H
 #define _INTERNAL_SYSCALL_H
 
+#include <errno.h>
+#include <lthread.h>
+#include <stdio.h>
 #include <sys/syscall.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
 #include "syscall_arch.h"
+#include "hostsyscalls.h"
+#include "sgxlkl_debug.h"
 
 #ifndef SYSCALL_RLIM_INFINITY
 #define SYSCALL_RLIM_INFINITY (~0ULL)
@@ -26,23 +33,293 @@ long __syscall_ret(unsigned long), __syscall(syscall_arg_t, ...),
 	__syscall_cp(syscall_arg_t, syscall_arg_t, syscall_arg_t, syscall_arg_t,
 	             syscall_arg_t, syscall_arg_t, syscall_arg_t);
 
-#ifdef SYSCALL_NO_INLINE
-#define __syscall0(n) (__syscall)(n)
-#define __syscall1(n,a) (__syscall)(n,__scc(a))
-#define __syscall2(n,a,b) (__syscall)(n,__scc(a),__scc(b))
-#define __syscall3(n,a,b,c) (__syscall)(n,__scc(a),__scc(b),__scc(c))
-#define __syscall4(n,a,b,c,d) (__syscall)(n,__scc(a),__scc(b),__scc(c),__scc(d))
-#define __syscall5(n,a,b,c,d,e) (__syscall)(n,__scc(a),__scc(b),__scc(c),__scc(d),__scc(e))
-#define __syscall6(n,a,b,c,d,e,f) (__syscall)(n,__scc(a),__scc(b),__scc(c),__scc(d),__scc(e),__scc(f))
+const char* lkl_strerror(int err);
+
+extern int sgxlkl_trace_syscall;
+extern int sgxlkl_use_host_network;
+
+#undef __LKL_SYSCALL
+#define __LKL_SYSCALL(nr) { (const char*)(__lkl__NR_ ## nr), #nr },
+#include <lkl.h>
+static const char* __lkl_syscall_names[][2] = {
+#include <lkl/syscalls.h>
+	{ NULL, NULL },
+#undef __LKL_SYSCALL
+};
+
+#ifdef DEBUG
+static inline void __log_lkl_syscall(long n, long* params, long res)
+{
+	const char* name = NULL;
+	char errmsg[255] = {0};
+
+	if (!sgxlkl_trace_syscall)
+		return;
+
+	for (int i = 0; __lkl_syscall_names[i][1] != NULL; i++) {
+		if ((long)__lkl_syscall_names[i][0] == n) {
+			name = __lkl_syscall_names[i][1];
+			break;
+		}
+	}
+
+	if (name == NULL)
+		name = "### INVALID ###";
+	if (res < 0)
+		snprintf(errmsg, sizeof(errmsg), " (%s) <--- !", lkl_strerror(res));
+
+	int tid = lthread_self() ? lthread_self()->tid : 0;
+	if (n == SYS_open || n == SYS_lstat) {
+		SGXLKL_TRACE_SYSCALL("[tid=%-3d] %s\t%ld\t(%s, %ld, %ld, %ld) = %ld %s\n", tid, name, n,
+			(const char*)(params[0]), params[1], params[2], params[3], res, errmsg);
+	} else if (n == SYS_execve) {
+	    SGXLKL_TRACE_SYSCALL("[tid=%-3d] %s\t%ld\t(%s, %s, %s, %ld, %ld) = %ld %s\n", tid, name, n,
+			(const char*)(params[0]), ((const char**)params[1])[0], ((const char**)params[1])[1], params[2], params[3], res, errmsg);
+	} else if (n == SYS_mmap) {
+	    SGXLKL_TRACE_SYSCALL("[tid=%-3d] %s\t%ld\t(%ld, %ld, %ld, %ld, %ld, %ld) = %ld%s\n", tid, name, n,
+			params[0], params[1], params[2], params[3], params[4], params[5], res, errmsg);
+	} else {
+	    SGXLKL_TRACE_SYSCALL("[tid=%-3d] %s\t%ld\t(%ld, %ld, %ld, %ld) = %ld%s\n", tid, name, n,
+			params[0], params[1], params[2], params[3], res, errmsg);
+	}
+}
 #else
-#define __syscall1(n,a) __syscall1(n,__scc(a))
-#define __syscall2(n,a,b) __syscall2(n,__scc(a),__scc(b))
-#define __syscall3(n,a,b,c) __syscall3(n,__scc(a),__scc(b),__scc(c))
-#define __syscall4(n,a,b,c,d) __syscall4(n,__scc(a),__scc(b),__scc(c),__scc(d))
-#define __syscall5(n,a,b,c,d,e) __syscall5(n,__scc(a),__scc(b),__scc(c),__scc(d),__scc(e))
-#define __syscall6(n,a,b,c,d,e,f) __syscall6(n,__scc(a),__scc(b),__scc(c),__scc(d),__scc(e),__scc(f))
+static inline void __log_lkl_syscall(long n, long* params, long res) { /* empty */ }
 #endif
-#define __syscall7(n,a,b,c,d,e,f,g) (__syscall)(n,__scc(a),__scc(b),__scc(c),__scc(d),__scc(e),__scc(f),__scc(g))
+
+static inline long __filter_syscall0(long n) {
+	long params[6] = {0};
+	if (n == SYS_gettid) {
+		return (long)lthread_id();
+	} else if (n == SYS_munlockall) {
+		return (long)host_syscall_SYS_munlockall();
+	} else {
+		long res = lkl_syscall(n, params);
+		__log_lkl_syscall(n, params, res);
+		if (res < 0) {
+			errno = -res;
+			res = -1;
+		}
+		return res;
+	}
+}
+
+static inline long __filter_syscall1(long n, long a1) {
+	long params[6] = {0};
+	if (n == SYS_set_tid_address) {
+		return (long)host_syscall_SYS_set_tid_address((int*)a1);
+	} else if (n == SYS_exit) {
+		host_syscall_SYS_exit((int)a1);
+		return 42;
+	} else if (n == SYS_exit_group) {
+		host_syscall_SYS_exit_group((int)a1);
+		return 42;
+	} else {
+		params[0] = a1;
+		long res = lkl_syscall(n, params);
+		__log_lkl_syscall(n, params, res);
+		if (res < 0) {
+			errno = -res;
+			res = -1;
+		}
+		return res;
+	}
+}
+
+static inline long __filter_syscall2(long n, long a1, long a2) {
+	long params[6] = {0};
+
+	if (n == SYS_kill) {
+		return (long)host_syscall_SYS_kill((pid_t)a1, (int)a2);
+	} else if (n == SYS_tkill) {
+		return (long)host_syscall_SYS_tkill((int)a1, (int)a2);
+	} else if (n == SYS_munmap) {
+		return (long)syscall_SYS_munmap((void*)a1, (size_t)a2);
+	} else if (n == SYS_nanosleep) {
+		return (long)host_syscall_SYS_nanosleep((const struct timespec*)a1, (struct timespec*)a2);
+	} else if (n == SYS_clock_gettime) {
+		return (long)host_syscall_SYS_clock_gettime((clockid_t)a1, (struct timespec*)a2);
+	} else if (n == SYS_clock_getres) {
+		return (long)host_syscall_SYS_clock_getres((clockid_t)a1, (struct timespec*)a2);
+	} else if (n == SYS_stat) {
+		struct lkl_stat tmp_stat;
+		params[0] = a1;
+		params[1] = (long) &tmp_stat;
+		long res = lkl_syscall(n, params);
+		__log_lkl_syscall(n, params, res);
+		if (res < 0) {
+			errno = -res;
+			res = -1;
+		} else {
+			struct stat *res_stat = (struct stat*) a2;
+
+			res_stat->st_dev = tmp_stat.st_dev;
+			res_stat->st_ino = tmp_stat.st_ino;
+			res_stat->st_mode = tmp_stat.st_mode;
+			res_stat->st_nlink = tmp_stat.st_nlink;
+			res_stat->st_uid = tmp_stat.st_uid;
+			res_stat->st_gid = tmp_stat.st_gid;
+			res_stat->st_rdev = tmp_stat.st_rdev;
+			res_stat->st_size = tmp_stat.st_size;
+			res_stat->st_blksize = tmp_stat.st_blksize;
+			res_stat->st_blocks = tmp_stat.st_blocks;
+			res_stat->st_atim.tv_sec = tmp_stat.lkl_st_atime;
+			res_stat->st_atim.tv_nsec = tmp_stat.st_atime_nsec;
+			res_stat->st_mtim.tv_sec = tmp_stat.lkl_st_mtime;
+			res_stat->st_mtim.tv_nsec = tmp_stat.st_mtime_nsec;
+			res_stat->st_ctim.tv_sec = tmp_stat.lkl_st_ctime;
+			res_stat->st_ctim.tv_nsec = tmp_stat.st_ctime_nsec;
+		}
+	      	return res;
+	} else if (n == SYS_sigaltstack) {
+		return (long)host_syscall_SYS_sigaltstack((stack_t*)a1, (stack_t*)a2);
+	} else if (n == SYS_rt_sigpending) {
+		return (long)host_syscall_SYS_rt_sigpending((sigset_t *)a1, (unsigned long)a2);
+	} else if (n == SYS_rt_sigsuspend) {
+		return (long)host_syscall_SYS_rt_sigsuspend((sigset_t *)a1, (unsigned long)a2);
+	} else {
+		params[0] = a1;
+		params[1] = a2;
+		long res = lkl_syscall(n, params);
+		__log_lkl_syscall(n, params, res);
+		if (res < 0) {
+			errno = -res;
+			res = -1;
+		}
+		return res;
+	}
+}
+
+static inline long __filter_syscall3(long n, long a1, long a2, long a3) {
+	long params[6] = {0};
+
+	if (n == SYS_writev && (a1 == STDOUT_FILENO || a1 == STDERR_FILENO)) {
+		return (long)host_syscall_SYS_writev((int)a1, (const struct iovec*)a2, (int)a3);
+	} else if (n == SYS_write && (a1 == STDOUT_FILENO || a1 == STDERR_FILENO)) {
+		return (long)host_syscall_SYS_write((int)a1, (const void*)a2, (long)a3);
+	} else if (n == SYS_ioctl && (a1 == STDOUT_FILENO || a1 == STDERR_FILENO || a1 == STDIN_FILENO)) {
+		return (long)host_syscall_SYS_ioctl((int)a1, (unsigned long)a2, (void*)a3);
+	} else if (n == SYS_read && (a1 == STDIN_FILENO)) {
+		return (long)host_syscall_SYS_read((int)a1, (char*)a2, (size_t)a3);
+	} else if (n == SYS_readv && (a1 == STDIN_FILENO)) {
+		return (long)host_syscall_SYS_readv((int)a1, (struct iovec*)a2, (int)a3);
+	} else if (n == SYS_msync) {
+		return (long)syscall_SYS_msync((void*)a1, (size_t)a2, (int)a3);
+	} else if (n == SYS_mprotect) {
+		return (long)host_syscall_SYS_mprotect((void*)a1, (size_t)a2, (int)a3);
+	} else {
+		params[0] = a1;
+		params[1] = a2;
+		params[2] = a3;
+		long res = lkl_syscall(n, params);
+		__log_lkl_syscall(n, params, res);
+		if (res < 0) {
+			errno = -res;
+			res = -1;
+		}
+		return res;
+	}
+}
+
+static inline long __filter_syscall4(long n, long a1, long a2, long a3, long a4) {
+	long params[6] = {0};
+	if (n == SYS_rt_sigprocmask) {
+		return (long)host_syscall_SYS_rt_sigprocmask((int)a1, (void*)a2, (sigset_t*)a3, (unsigned long)a4);
+	} else if (n == SYS_rt_sigtimedwait) {
+		return (long)host_syscall_SYS_rt_sigtimedwait((sigset_t *)a1, (siginfo_t*)a2, (struct timespec*)a3, (unsigned long)a4);
+	}
+#ifndef SGXLKL_HW 
+    else if (n == SYS_rt_sigaction) {
+        return ((int)host_syscall_SYS_rt_sigaction((int)a1, (struct sigaction *)a2, (struct sigaction *)a3, (unsigned long)a4)); 
+    } 
+#endif
+    else {
+		params[0] = a1;
+		params[1] = a2;
+		params[2] = a3;
+		params[3] = a4;
+		long res = lkl_syscall(n, params);
+		__log_lkl_syscall(n, params, res);
+		if (res < 0) {
+			errno = -res;
+			res = -1;
+		}
+		return res;
+	}
+}
+
+static inline long __filter_syscall5(long n, long a1, long a2, long a3, long a4, long a5) {
+	long params[6] = {0};
+	if (n == SYS_mremap) {
+		return (long)syscall_SYS_mremap((void*)a1, (size_t)a2, (size_t)a3, (int)a4, (void*)a5);
+	} else {
+		params[0] = a1;
+		params[1] = a2;
+		params[2] = a3;
+		params[3] = a4;
+		params[4] = a5;
+		long res = lkl_syscall(n, params);
+		__log_lkl_syscall(n, params, res);
+		if (res < 0) {
+			errno = -res;
+			res = -1;
+		}
+		return res;
+	}
+}
+
+static inline long __filter_syscall6(long n, long a1, long a2, long a3, long a4, long a5, long a6) {
+	long params[6] = {0};
+	if (n == SYS_mmap) {
+		params[0] = a1;
+		params[1] = a2;
+		params[2] = a3;
+		params[3] = a4;
+		params[4] = a5;
+		params[5] = a6;
+		if (a4 == MAP_PRIVATE || a4 == MAP_SHARED)
+		{
+			params[3]=MAP_PRIVATE;
+			long res = lkl_syscall(n, params);
+			__log_lkl_syscall(n, params, res);
+			if (res < 0) {
+				errno = -res;
+				res = -1;
+			}
+			return res;
+		}
+		else
+		{
+			return (long)syscall_SYS_mmap((void*)a1, (size_t)a2, (int)a3, (int)a4, (int)a5, (off_t)a6);
+		}
+
+	} else if (n == SYS_futex) {
+		return (long)syscall_SYS_futex((int*)a1, (int)a2, (int)a3, (const struct timespec*)a4,
+			(int*)a5, (int)a6);
+	} else {
+		params[0] = a1;
+		params[1] = a2;
+		params[2] = a3;
+		params[3] = a4;
+		params[4] = a5;
+		params[5] = a6;
+		long res = lkl_syscall(n, params);
+		__log_lkl_syscall(n, params, res);
+		if (res < 0) {
+			errno = -res;
+			res = -1;
+		}
+		return res;
+	}
+}
+
+#define __filter_syscall0(n) __filter_syscall0(n)
+#define __filter_syscall1(n,a) __filter_syscall1(n,(long)(a))
+#define __filter_syscall2(n,a,b) __filter_syscall2(n,(long)(a),(long)(b))
+#define __filter_syscall3(n,a,b,c) __filter_syscall3(n,(long)(a),(long)(b),(long)(c))
+#define __filter_syscall4(n,a,b,c,d) __filter_syscall4(n,(long)(a),(long)(b),(long)(c),(long)(d))
+#define __filter_syscall5(n,a,b,c,d,e) __filter_syscall5(n,(long)(a),(long)(b),(long)(c),(long)(d),(long)(e))
+#define __filter_syscall6(n,a,b,c,d,e,f) __filter_syscall6(n,(long)(a),(long)(b),(long)(c),(long)(d),(long)(e),(long)(f))
 
 #define __SYSCALL_NARGS_X(a,b,c,d,e,f,g,h,n,...) n
 #define __SYSCALL_NARGS(...) __SYSCALL_NARGS_X(__VA_ARGS__,7,6,5,4,3,2,1,0,)
@@ -50,32 +327,17 @@ long __syscall_ret(unsigned long), __syscall(syscall_arg_t, ...),
 #define __SYSCALL_CONCAT(a,b) __SYSCALL_CONCAT_X(a,b)
 #define __SYSCALL_DISP(b,...) __SYSCALL_CONCAT(b,__SYSCALL_NARGS(__VA_ARGS__))(__VA_ARGS__)
 
-#define __syscall(...) __SYSCALL_DISP(__syscall,__VA_ARGS__)
+#define __syscall(...) __SYSCALL_DISP(__filter_syscall,__VA_ARGS__)
 #define syscall(...) __syscall_ret(__syscall(__VA_ARGS__))
 
 #define socketcall __socketcall
 #define socketcall_cp __socketcall_cp
 
-#define __syscall_cp0(n) (__syscall_cp)(n,0,0,0,0,0,0)
-#define __syscall_cp1(n,a) (__syscall_cp)(n,__scc(a),0,0,0,0,0)
-#define __syscall_cp2(n,a,b) (__syscall_cp)(n,__scc(a),__scc(b),0,0,0,0)
-#define __syscall_cp3(n,a,b,c) (__syscall_cp)(n,__scc(a),__scc(b),__scc(c),0,0,0)
-#define __syscall_cp4(n,a,b,c,d) (__syscall_cp)(n,__scc(a),__scc(b),__scc(c),__scc(d),0,0)
-#define __syscall_cp5(n,a,b,c,d,e) (__syscall_cp)(n,__scc(a),__scc(b),__scc(c),__scc(d),__scc(e),0)
-#define __syscall_cp6(n,a,b,c,d,e,f) (__syscall_cp)(n,__scc(a),__scc(b),__scc(c),__scc(d),__scc(e),__scc(f))
-
-#define __syscall_cp(...) __SYSCALL_DISP(__syscall_cp,__VA_ARGS__)
+#define __syscall_cp(...) __SYSCALL_DISP(__filter_syscall,__VA_ARGS__)
 #define syscall_cp(...) __syscall_ret(__syscall_cp(__VA_ARGS__))
 
-#ifndef SYSCALL_USE_SOCKETCALL
 #define __socketcall(nm,a,b,c,d,e,f) syscall(SYS_##nm, a, b, c, d, e, f)
 #define __socketcall_cp(nm,a,b,c,d,e,f) syscall_cp(SYS_##nm, a, b, c, d, e, f)
-#else
-#define __socketcall(nm,a,b,c,d,e,f) syscall(SYS_socketcall, __SC_##nm, \
-    ((long [6]){ (long)a, (long)b, (long)c, (long)d, (long)e, (long)f }))
-#define __socketcall_cp(nm,a,b,c,d,e,f) syscall_cp(SYS_socketcall, __SC_##nm, \
-    ((long [6]){ (long)a, (long)b, (long)c, (long)d, (long)e, (long)f }))
-#endif
 
 /* fixup legacy 16-bit junk */
 
@@ -226,17 +488,10 @@ long __syscall_ret(unsigned long), __syscall(syscall_arg_t, ...),
 #define __SC_recvmmsg    19
 #define __SC_sendmmsg    20
 
-#ifdef SYS_open
-#define __sys_open2(x,pn,fl) __syscall2(SYS_open, pn, (fl)|O_LARGEFILE)
-#define __sys_open3(x,pn,fl,mo) __syscall3(SYS_open, pn, (fl)|O_LARGEFILE, mo)
-#define __sys_open_cp2(x,pn,fl) __syscall_cp2(SYS_open, pn, (fl)|O_LARGEFILE)
-#define __sys_open_cp3(x,pn,fl,mo) __syscall_cp3(SYS_open, pn, (fl)|O_LARGEFILE, mo)
-#else
-#define __sys_open2(x,pn,fl) __syscall3(SYS_openat, AT_FDCWD, pn, (fl)|O_LARGEFILE)
-#define __sys_open3(x,pn,fl,mo) __syscall4(SYS_openat, AT_FDCWD, pn, (fl)|O_LARGEFILE, mo)
-#define __sys_open_cp2(x,pn,fl) __syscall_cp3(SYS_openat, AT_FDCWD, pn, (fl)|O_LARGEFILE)
-#define __sys_open_cp3(x,pn,fl,mo) __syscall_cp4(SYS_openat, AT_FDCWD, pn, (fl)|O_LARGEFILE, mo)
-#endif
+#define __sys_open2(x,pn,fl) __filter_syscall2(SYS_open, pn, (fl)|O_LARGEFILE)
+#define __sys_open3(x,pn,fl,mo) __filter_syscall3(SYS_open, pn, (fl)|O_LARGEFILE, mo)
+#define __sys_open_cp2(x,pn,fl) __filter_syscall2(SYS_open, pn, (fl)|O_LARGEFILE)
+#define __sys_open_cp3(x,pn,fl,mo) __filter_syscall3(SYS_open, pn, (fl)|O_LARGEFILE, mo)
 
 #define __sys_open(...) __SYSCALL_DISP(__sys_open,,__VA_ARGS__)
 #define sys_open(...) __syscall_ret(__sys_open(__VA_ARGS__))

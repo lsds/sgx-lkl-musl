@@ -2,5 +2,7 @@
 
 int *__errno_location(void)
 {
-	return &__pthread_self()->errno_val;
+        struct schedctx *sch = __scheduler_self();
+        struct lthread *lt = sch->sched.current_lthread;
+        return lt ? &lt->err : &sch->errno_val;
 }

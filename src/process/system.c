@@ -17,8 +17,6 @@ int system(const char *cmd)
 	int status = 0x7f00, ret;
 	posix_spawnattr_t attr;
 
-	pthread_testcancel();
-
 	if (!cmd) return 1;
 
 	sigaction(SIGINT, &sa, &oldint);

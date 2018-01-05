@@ -21,6 +21,14 @@
 
 #define RLIM(x) (-32768|(RLIMIT_ ## x))
 
+static long sysconf_nproc_conf;
+static long sysconf_nproc_onln;
+
+void init_sysconf(long nproc_conf, long nproc_onln) {
+		sysconf_nproc_conf = nproc_conf;
+		sysconf_nproc_onln = nproc_conf;
+}
+
 long sysconf(int name)
 {
 	static const short values[] = {
@@ -189,13 +197,9 @@ long sysconf(int name)
 	case JT_SEM_VALUE_MAX & 255:
 		return SEM_VALUE_MAX;
 	case JT_NPROCESSORS_CONF & 255:
-	case JT_NPROCESSORS_ONLN & 255: ;
-		unsigned char set[128] = {1};
-		int i, cnt;
-		__syscall(SYS_sched_getaffinity, 0, sizeof set, set);
-		for (i=cnt=0; i<sizeof set; i++)
-			for (; set[i]; set[i]&=set[i]-1, cnt++);
-		return cnt;
+		return sysconf_nproc_conf;
+	case JT_NPROCESSORS_ONLN & 255:
+		return sysconf_nproc_onln;
 	case JT_PHYS_PAGES & 255:
 	case JT_AVPHYS_PAGES & 255: ;
 		unsigned long long mem;

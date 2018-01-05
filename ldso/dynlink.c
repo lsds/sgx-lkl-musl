@@ -20,6 +20,8 @@
 #include "pthread_impl.h"
 #include "libc.h"
 #include "dynlink.h"
+#include "enclave_config.h"
+#include <sys/prctl.h>
 
 static void error(const char *, ...);
 
@@ -104,7 +106,7 @@ const char *__libc_get_version(void);
 
 static struct builtin_tls {
 	char c;
-	struct pthread pt;
+        struct schedctx pt; /* was: pthread */
 	void *space[16];
 } builtin_tls[1];
 #define MIN_TLS_ALIGN offsetof(struct builtin_tls, pt)
@@ -480,7 +482,6 @@ static void reclaim_gaps(struct dso *dso)
 	Phdr *ph = dso->phdr;
 	size_t phcnt = dso->phnum;
 
-	if (DL_FDPIC) return; // FIXME
 	for (; phcnt--; ph=(void *)((char *)ph+dso->phentsize)) {
 		if (ph->p_type!=PT_LOAD) continue;
 		if ((ph->p_flags&(PF_R|PF_W))!=(PF_R|PF_W)) continue;
@@ -494,6 +495,7 @@ static void *mmap_fixed(void *p, size_t n, int prot, int flags, int fd, off_t of
 {
 	static int no_map_fixed;
 	char *q;
+	no_map_fixed = 1; // XXX(lukegb): investigate why mmapping isn't working
 	if (!no_map_fixed) {
 		q = mmap(p, n, prot, flags|MAP_FIXED, fd, off);
 		if (!DL_NOMMU_SUPPORT || q != MAP_FAILED || errno != EINVAL)
@@ -532,6 +534,194 @@ static void unmap_library(struct dso *dso)
 	} else if (dso->map && dso->map_len) {
 		munmap(dso->map, dso->map_len);
 	}
+}
+
+void __attribute__ ((noinline)) __gdb_hook_load_debug_symbols(struct dso *dso, void *symmem, ssize_t symsz)
+{
+	__asm__ volatile ("" : : "m" (dso), "m" (symmem), "m" (symsz));
+}
+
+/* can't be static, we need to keep the symbol alive */
+int __gdb_load_debug_symbols_alive = 0;
+
+/* sgx-lkl hooks for loading debug symbols */
+static void __gdb_load_debug_symbols(int fd, struct dso *dso, Ehdr *eh)
+{
+	struct stat fdstat;
+	char *debugpath = NULL;
+	char *symmem = NULL;
+	int symfd = 0;
+	ssize_t symrem = 0;
+	Elf64_Shdr *sh = NULL;
+	Elf64_Shdr *sh_str = NULL;
+	char *sh_strtab = NULL;
+	char *debuglink = NULL;
+	char *buildid = NULL;
+	int buildid_len = 0;
+
+	char buf[30];
+	char linkname[PATH_MAX] = {0};
+
+	if (!__gdb_load_debug_symbols_alive) return;
+
+	/* try to reverse-engineer the filename we're loading from */
+	/* warning: this is racy! */
+	if (fstat(fd, &fdstat) < 0)
+		goto fail;
+
+	sprintf(buf, "/proc/self/fd/%d", fd);
+	if (readlink(buf, linkname, sizeof(linkname)) < 0)
+		goto fail;
+
+	if (eh->e_shoff != 0) {
+		/* read the gnu_debuglink section from dso */
+		if (sizeof(Elf64_Shdr) != eh->e_shentsize) {
+			fprintf(stderr, "%s: section entry size %d doesn't match Elf64_Shdr size %d\n", linkname, eh->e_shentsize, sizeof(Elf64_Shdr));
+			goto fail;
+		}
+
+		sh_str = malloc(sizeof(Elf64_Shdr));
+		if (sh_str == NULL) goto fail;
+		if (lseek(fd, eh->e_shoff + (eh->e_shentsize * eh->e_shstrndx), SEEK_SET) == -1) goto fail;
+		int n, r;
+		char *q;
+		for (n=sizeof(Elf64_Shdr), q=sh_str; n;) {
+			r = read(fd, q, n);
+			q+=r;
+			n-=r;
+			if (!r) goto fail;
+		}
+
+		sh_strtab = malloc(sh_str->sh_size);
+		if (sh_strtab == NULL) goto fail;
+		if (lseek(fd, sh_str->sh_offset, SEEK_SET) == -1) goto fail;
+		for (n=sh_str->sh_size, q=sh_strtab; n;) {
+			r = read(fd, q, n);
+			q+=r;
+			n-=r;
+			if (!r) goto fail;
+		}
+
+		sh = malloc(sizeof(Elf64_Shdr));
+		if (sh == NULL) goto fail;
+		for (int i = 0; i < eh->e_shnum; i++) {
+			char** readinto = NULL;
+			int readoffset = 0;
+
+			if (lseek(fd, eh->e_shoff + (eh->e_shentsize * i), SEEK_SET) == -1) goto fail;
+			for (n=eh->e_shentsize, q=sh; n;) {
+				r = read(fd, q, n);
+				q+=r;
+				n-=r;
+				if (!r) goto fail;
+			}
+			if (strcmp(sh_strtab + sh->sh_name, ".gnu_debuglink") == 0) {
+				// debuglink!
+				readinto = &debuglink;
+			}
+			if (strcmp(sh_strtab + sh->sh_name, ".note.gnu.build-id") == 0) {
+				// build id
+				readinto = &buildid;
+				buildid_len = sh->sh_size - 16;
+				readoffset = 16;
+			}
+
+			if (readinto != NULL) {
+				*readinto = malloc(sh->sh_size - readoffset);
+				if (*readinto == NULL) goto fail;
+				if (lseek(fd, sh->sh_offset + readoffset, SEEK_SET) == -1) goto fail;
+				for (n=sh->sh_size - readoffset, q=*readinto; n;) {
+					r = read(fd, q, n);
+					q+=r;
+					n-=r;
+					if (!r) goto fail;
+				}
+				continue;
+			}
+		}
+
+		/* trim filename off linkname */
+		char *p = linkname + strlen(linkname);
+		while (*--p != '/');
+		*p = 0;
+
+		/* allocate buffer for debug path */
+		if (buildid_len > 0) {
+			debugpath = malloc(32 + 2*buildid_len + 1);
+			char *tmpp = debugpath;
+			tmpp += sprintf(tmpp, "/usr/lib/debug/.build-id/%02x/", (unsigned char)buildid[0]);
+			for (int i = 1; i < buildid_len; i++) {
+				tmpp += sprintf(tmpp, "%02x", (unsigned char)buildid[i]);
+			}
+			sprintf(tmpp, ".debug");
+			fprintf(stderr, "[SGX-LKL-GDB] trying to load debug info from %s\n", debugpath);
+			if (stat(debugpath, &fdstat) == 0) goto foundpath;
+			free(debugpath); debugpath = NULL;
+		}
+
+		if (debuglink != NULL) {
+			debugpath = malloc(strlen(linkname) + 1 + strlen(debuglink) + 1);
+			sprintf(debugpath, "%s/%s", linkname, debuglink);
+			fprintf(stderr, "[SGX-LKL-GDB] trying to load debug info from %s\n", debugpath);
+			if (stat(debugpath, &fdstat) == 0) goto foundpath;
+			free(debugpath); debugpath = NULL;
+
+			debugpath = realloc(debugpath, strlen(linkname) + 1 + 7 + strlen(debuglink) + 1);
+			sprintf(debugpath, "%s/.debug/%s", linkname, debuglink);
+			fprintf(stderr, "[SGX-LKL-GDB] trying to load debug info from %s\n", debugpath);
+			if (stat(debugpath, &fdstat) == 0) goto foundpath;
+
+			debugpath = realloc(debugpath, 14 + strlen(linkname) + 1 + strlen(debuglink) + 1);
+			sprintf(debugpath, "/usr/lib/debug%s/%s", linkname, debuglink);
+			fprintf(stderr, "[SGX-LKL-GDB] trying to load debug info from %s\n", debugpath);
+			if (stat(debugpath, &fdstat) == 0) goto foundpath;
+		}
+
+		if (debugpath != NULL) {
+			free(debugpath);
+			debugpath = NULL;
+		}
+		*p = '/'; /* restore linkname to full directory path */
+	} else {
+		/* generate a speculative debug path */
+		debugpath = malloc(fdstat.st_size+1+14+6); /* len('/usr/lib/debug') == 14, len('.debug') == 6 */
+		if (debugpath == NULL) goto fail;
+
+		sprintf(debugpath, "/usr/lib/debug%s.debug", linkname);
+		fprintf(stderr, "[SGX-LKL-GDB] trying to load debug info from %s\n", debugpath);
+	}
+	if (debugpath == NULL || stat(debugpath, &fdstat) < 0) {
+		fprintf(stderr, "[SGX-LKL-GDB] could not find debug info, falling back to original binary at %s\n", linkname);
+		free(debugpath);
+		debugpath = linkname;
+	}
+
+foundpath:
+	/* allocate memory for the symbols */
+	symmem = malloc(fdstat.st_size);
+	if (symmem == NULL) goto fail;
+
+	symfd = open(debugpath, O_RDONLY);
+	if (symfd <= 0) goto fail;
+
+	/* read symbols into symfd */
+	symrem = fdstat.st_size;
+	while (symrem > 0) {
+		ssize_t r = read(symfd, symmem + fdstat.st_size - symrem, symrem);
+		if (r <= 0) goto fail;
+		symrem -= r;
+	}
+
+	/* invoke gdb */
+	__gdb_hook_load_debug_symbols(dso, symmem, fdstat.st_size);
+
+fail:
+	if (sh_str != NULL) free(sh_str);
+	if (sh_strtab != NULL) free(sh_strtab);
+	if (sh != NULL) free(sh);
+	if (symfd > 0) close(symfd);
+	if (symmem != NULL) free(symmem);
+	if (debugpath != NULL && debugpath != linkname) free(debugpath);
 }
 
 static void *map_library(int fd, struct dso *dso)
@@ -705,7 +895,8 @@ done_mapping:
 	dso->base = base;
 	dso->dynv = laddr(dso, dyn);
 	if (dso->tls.size) dso->tls.image = laddr(dso, tls_image);
-	if (!runtime) reclaim_gaps(dso);
+	__gdb_load_debug_symbols(fd, dso, eh);
+	//if (!runtime) reclaim_gaps(dso); // TODO(lukegb): reclaim_gaps is definitely broken
 	free(allocated_buf);
 	return map;
 noexec:
@@ -1308,7 +1499,7 @@ static void update_tls_size()
 	libc.tls_size = ALIGN(
 		(1+tls_cnt) * sizeof(void *) +
 		tls_offset +
-		sizeof(struct pthread) +
+		sizeof(struct schedctx) + /* was: pthread */
 		tls_align * 2,
 	tls_align);
 }
@@ -1325,8 +1516,9 @@ static void update_tls_size()
  * replaced later due to copy relocations in the main program. */
 
 __attribute__((__visibility__("hidden")))
-void __dls2(unsigned char *base, size_t *sp)
+void* __dls2(unsigned char *base, enclave_config_t *sp)
 {
+#if 0
 	if (DL_FDPIC) {
 		void *p1 = (void *)sp[-2];
 		void *p2 = (void *)sp[-1];
@@ -1341,8 +1533,11 @@ void __dls2(unsigned char *base, size_t *sp)
 		ldso.loadmap = p2 ? p2 : p1;
 		ldso.base = laddr(&ldso, 0);
 	} else {
+#endif
 		ldso.base = base;
+#if 0
 	}
+#endif
 	Ehdr *ehdr = (void *)ldso.base;
 	ldso.name = ldso.shortname = "libc.so";
 	ldso.global = 1;
@@ -1375,12 +1570,57 @@ void __dls2(unsigned char *base, size_t *sp)
 
 	ldso.relocated = 0;
 
-	/* Call dynamic linker stage-3, __dls3, looking it up
-	 * symbolically as a barrier against moving the address
-	 * load across the above relocation processing. */
-	struct symdef dls3_def = find_sym(&ldso, "__dls3", 0);
-	if (DL_FDPIC) ((stage3_func)&ldso.funcdescs[dls3_def.sym-ldso.syms])(sp);
-	else ((stage3_func)laddr(&ldso, dls3_def.sym->st_value))(sp);
+	// We don't call __dls3 here. Once we've got here,
+	// we're safe enough to init LKL, which can then
+	// run stage 3.
+#ifndef SGXLKL_HW
+	struct symdef init_def = find_sym(&ldso, "__sgx_init_enclave", 0);
+	if (DL_FDPIC) return &ldso.funcdescs[init_def.sym-ldso.syms];
+	else return laddr(&ldso, init_def.sym->st_value);
+#else
+        return 0;
+#endif
+}
+
+static _Noreturn void __attribute__((optimize("-O0")))
+prepare_stack_and_jmp_to_exec(void *at_entry, char** argv, enclave_config_t *encl, void *tos) {
+	// Normally, we would use argv as a marker for the top of the
+	// stack, but since argv is embedded within the enclave_config_t
+	// struct in this case we can't do that without writing garbage
+	// over the config.
+
+	// However, we still need argc, argv, and envp at the top of the
+	// stack, so we're going to use tos and manually scribble over
+	// our stack.
+
+	// Ask compiler to store variables in registers and not on the stack
+	// since any stack variable could get overwritten by the following
+	// code.
+	register char **tosptr;
+	register char **t;
+	register char **base;
+	register char **argvnew = argv;
+	register int argcnew = encl->argc - 1; /* first arg removed - disk image path */
+	register void *app_entry = at_entry;
+
+	tosptr = (char**)tos;
+
+	base = t = argvnew + encl->argc + 1;
+	while (*t) { t++; }
+	while (t >= base) {
+		*(tosptr--) = *(t--);
+	}
+
+	base = t = argvnew;
+	while (*t) { t++; }
+	while (t >= base) {
+		*(tosptr--) = *(t--);
+	}
+
+	*tosptr = argcnew;
+
+	CRTJMP(app_entry, tosptr);
+	for(;;);
 }
 
 /* Stage 3 of the dynamic linker is called with the dynamic linker/libc
@@ -1388,37 +1628,20 @@ void __dls2(unsigned char *base, size_t *sp)
  * process dependencies and relocations for the main application and
  * transfer control to its entry point. */
 
-_Noreturn void __dls3(size_t *sp)
+void __dls3(enclave_config_t *encl, void *tos)
 {
 	static struct dso app, vdso;
 	size_t aux[AUX_CNT], *auxv;
 	size_t i;
 	char *env_preload=0;
 	size_t vdso_base;
-	int argc = *sp;
-	char **argv = (void *)(sp+1);
+	int argc = encl->argc;
+	char **argv = encl->argv;
 	char **argv_orig = argv;
 	char **envp = argv+argc+1;
 
-	/* Find aux vector just past environ[] and use it to initialize
-	 * global data that may be needed before we can make syscalls. */
-	__environ = envp;
-	for (i=argc+1; argv[i]; i++);
-	libc.auxv = auxv = (void *)(argv+i+1);
+	auxv = libc.auxv;
 	decode_vec(auxv, aux, AUX_CNT);
-	__hwcap = aux[AT_HWCAP];
-	libc.page_size = aux[AT_PAGESZ];
-	libc.secure = ((aux[0]&0x7800)!=0x7800 || aux[AT_UID]!=aux[AT_EUID]
-		|| aux[AT_GID]!=aux[AT_EGID] || aux[AT_SECURE]);
-
-	/* Setup early thread pointer in builtin_tls for ldso/libc itself to
-	 * use during dynamic linking. If possible it will also serve as the
-	 * thread pointer at runtime. */
-	libc.tls_size = sizeof builtin_tls;
-	libc.tls_align = tls_align;
-	if (__init_tp(__copy_tls((void *)builtin_tls)) < 0) {
-		a_crash();
-	}
 
 	/* Only trust user/env if kernel says we're not suid/sgid */
 	if (!libc.secure) {
@@ -1429,9 +1652,10 @@ _Noreturn void __dls3(size_t *sp)
 	/* If the main program was already loaded by the kernel,
 	 * AT_PHDR will point to some location other than the dynamic
 	 * linker's program headers. */
-	if (aux[AT_PHDR] != (size_t)ldso.phdr) {
+	if (0 && aux[AT_PHDR] != (size_t)ldso.phdr) {
 		size_t interp_off = 0;
 		size_t tls_image = 0;
+		Elf64_Phdr *tls_phdr = 0;
 		/* Find load address of the main program, via AT_PHDR vs PT_PHDR. */
 		Phdr *phdr = app.phdr = (void *)aux[AT_PHDR];
 		app.phnum = aux[AT_PHNUM];
@@ -1442,11 +1666,17 @@ _Noreturn void __dls3(size_t *sp)
 			else if (phdr->p_type == PT_INTERP)
 				interp_off = (size_t)phdr->p_vaddr;
 			else if (phdr->p_type == PT_TLS) {
+				tls_phdr = phdr;
 				tls_image = phdr->p_vaddr;
 				app.tls.len = phdr->p_filesz;
 				app.tls.size = phdr->p_memsz;
 				app.tls.align = phdr->p_align;
 			}
+		}
+		if (tls_phdr) {
+			// Initialise user-TLS again, this time with the target.
+			void __init_utls(size_t base, Elf64_Phdr *tls_phdr);
+			__init_utls(app.base, tls_phdr);
 		}
 		if (DL_FDPIC) app.loadmap = app_loadmap;
 		if (app.tls.size) app.tls.image = laddr(&app, tls_image);
@@ -1548,33 +1778,13 @@ _Noreturn void __dls3(size_t *sp)
 		argv[-3] = (void *)app.loadmap;
 	}
 
-	/* Attach to vdso, if provided by the kernel */
-	if (search_vec(auxv, &vdso_base, AT_SYSINFO_EHDR)) {
-		Ehdr *ehdr = (void *)vdso_base;
-		Phdr *phdr = vdso.phdr = (void *)(vdso_base + ehdr->e_phoff);
-		vdso.phnum = ehdr->e_phnum;
-		vdso.phentsize = ehdr->e_phentsize;
-		for (i=ehdr->e_phnum; i; i--, phdr=(void *)((char *)phdr + ehdr->e_phentsize)) {
-			if (phdr->p_type == PT_DYNAMIC)
-				vdso.dynv = (void *)(vdso_base + phdr->p_offset);
-			if (phdr->p_type == PT_LOAD)
-				vdso.base = (void *)(vdso_base - phdr->p_vaddr + phdr->p_offset);
-		}
-		vdso.name = "";
-		vdso.shortname = "linux-gate.so.1";
-		vdso.global = 1;
-		vdso.relocated = 1;
-		decode_dyn(&vdso);
-		vdso.prev = &ldso;
-		ldso.next = &vdso;
-	}
-
 	/* Initial dso chain consists only of the app. */
 	head = tail = &app;
 
 	/* Donate unused parts of app and library mapping to malloc */
-	reclaim_gaps(&app);
-	reclaim_gaps(&ldso);
+	//TODO (cp3213) reclaim_gaps still seems to be broken (with up-to-date musl/lkl)
+	//reclaim_gaps(&app);
+	//reclaim_gaps(&ldso);
 
 	/* Load preload/needed libraries, add their symbols to the global
 	 * namespace, and perform all remaining relocations. */
@@ -1596,6 +1806,8 @@ _Noreturn void __dls3(size_t *sp)
 	reloc_all(app.next);
 	reloc_all(&app);
 
+	do_init_fini(&app);
+#if 0
 	update_tls_size();
 	if (libc.tls_size > sizeof builtin_tls || tls_align > MIN_TLS_ALIGN) {
 		void *initial_tls = calloc(libc.tls_size, 1);
@@ -1618,6 +1830,7 @@ _Noreturn void __dls3(size_t *sp)
 		libc.tls_size = tmp_tls_size;
 	}
 	static_tls_cnt = tls_cnt;
+#endif
 
 	if (ldso_fail) _exit(127);
 	if (ldd_mode) _exit(0);
@@ -1636,8 +1849,13 @@ _Noreturn void __dls3(size_t *sp)
 
 	errno = 0;
 
-	CRTJMP((void *)aux[AT_ENTRY], argv-1);
-	for(;;);
+
+	// Adjust /proc/self/exe
+	int fd = open(app.name, O_RDONLY);
+	prctl(PR_SET_MM, PR_SET_MM_EXE_FILE, fd, 0, 0);
+	close(fd);
+
+	prepare_stack_and_jmp_to_exec((void *)aux[AT_ENTRY], argv, encl, tos);
 }
 
 void *dlopen(const char *file, int mode)

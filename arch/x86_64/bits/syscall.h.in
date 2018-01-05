@@ -1,3 +1,7 @@
+#ifndef __INCLUDE_FROM_SYS_SYSCALL_H
+#error "Please do not include this header directly, use sys/syscall.h"
+#endif
+
 #define __NR_read				0
 #define __NR_write				1
 #define __NR_open				2

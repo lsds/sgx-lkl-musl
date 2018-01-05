@@ -7,10 +7,10 @@ void *__tls_get_new(size_t *);
 
 void *__tls_get_addr(size_t *v)
 {
-	pthread_t self = __pthread_self();
-	if (v[0]<=(size_t)self->dtv[0])
-		return (char *)self->dtv[v[0]]+v[1]+DTP_OFFSET;
-	return __tls_get_new(v);
+    /* current_lthread->tls + v[1] */
+    struct lthread_sched *sch = lthread_get_sched();
+    struct lthread *lt = sch->current_lthread;
+    return (char *)lt->itls+v[1]+DTP_OFFSET;
 }
 
 weak_alias(__tls_get_addr, __tls_get_new);

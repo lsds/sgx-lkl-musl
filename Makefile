@@ -17,6 +17,8 @@ includedir = $(prefix)/include
 libdir = $(prefix)/lib
 syslibdir = /lib
 
+lklheaderdir= ..
+
 SRC_DIRS = $(addprefix $(srcdir)/,src/* crt ldso)
 BASE_GLOBS = $(addsuffix /*.c,$(SRC_DIRS))
 ARCH_GLOBS = $(addsuffix /$(ARCH)/*.[csS],$(SRC_DIRS))
@@ -43,11 +45,15 @@ LIBCC = -lgcc
 CPPFLAGS =
 CFLAGS =
 CFLAGS_AUTO = -Os -pipe
-CFLAGS_C99FSE = -std=c99 -ffreestanding -nostdinc 
+CFLAGS_C99FSE = -std=c99 -ffreestanding -nostdinc
+
 
 CFLAGS_ALL = $(CFLAGS_C99FSE)
-CFLAGS_ALL += -D_XOPEN_SOURCE=700 -I$(srcdir)/arch/$(ARCH) -I$(srcdir)/arch/generic -Iobj/src/internal -I$(srcdir)/src/internal -Iobj/include -I$(srcdir)/include
-CFLAGS_ALL += $(CPPFLAGS) $(CFLAGS_AUTO) $(CFLAGS)
+CFLAGS_ALL += -D_XOPEN_SOURCE=700 -I$(srcdir)/arch/$(ARCH) -I$(srcdir)/arch/generic -Iobj/src/internal -I$(srcdir)/src/internal -Iobj/include -I$(srcdir)/include -isystem $(lklheaderdir)/ -isystem $(sgxlklheaderdir)/ -isystem $(opensslheaderdir)/ -isystem $(cryptsetupheaderdir)/
+CFLAGS_ALL += $(CPPFLAGS) $(CFLAGS_AUTO) $(CFLAGS) $(CFLAGS_SGX) $(OPENSSL_CFLAGS)
+
+# don't allow dynamic linker to use mmap
+CFLAGS_ALL += -DDL_NOMMU_SUPPORT=1
 
 LDFLAGS_ALL = $(LDFLAGS_AUTO) $(LDFLAGS)
 
@@ -57,16 +63,15 @@ INSTALL = $(srcdir)/tools/install.sh
 
 ARCH_INCLUDES = $(wildcard $(srcdir)/arch/$(ARCH)/bits/*.h)
 GENERIC_INCLUDES = $(wildcard $(srcdir)/arch/generic/bits/*.h)
+LKL_INCLUDES = $(shell find $(lklheaderdir)/ -name "*.h" -type f)
 INCLUDES = $(wildcard $(srcdir)/include/*.h $(srcdir)/include/*/*.h)
-ALL_INCLUDES = $(sort $(INCLUDES:$(srcdir)/%=%) $(GENH:obj/%=%) $(ARCH_INCLUDES:$(srcdir)/arch/$(ARCH)/%=include/%) $(GENERIC_INCLUDES:$(srcdir)/arch/generic/%=include/%))
+ALL_INCLUDES = $(sort $(INCLUDES:$(srcdir)/%=%) $(GENH:obj/%=%) $(ARCH_INCLUDES:$(srcdir)/arch/$(ARCH)/%=include/%) $(GENERIC_INCLUDES:$(srcdir)/arch/generic/%=include/%)) $(LKL_INCLUDES:$(lklheaderdir)/%=include/%) 
 
 EMPTY_LIB_NAMES = m rt pthread crypt util xnet resolv dl
 EMPTY_LIBS = $(EMPTY_LIB_NAMES:%=lib/lib%.a)
 CRT_LIBS = $(addprefix lib/,$(notdir $(CRT_OBJS)))
-STATIC_LIBS = lib/libc.a
-SHARED_LIBS = lib/libc.so
-TOOL_LIBS = lib/musl-gcc.specs
-ALL_LIBS = $(CRT_LIBS) $(STATIC_LIBS) $(SHARED_LIBS) $(EMPTY_LIBS) $(TOOL_LIBS)
+SHARED_LIBS = lib/libsgxlkl.so
+ALL_LIBS = $(CRT_LIBS) $(SHARED_LIBS) $(EMPTY_LIBS) 
 ALL_TOOLS = obj/musl-gcc
 
 WRAPCC_GCC = gcc
@@ -111,7 +116,7 @@ obj/crt/crt1.o obj/crt/scrt1.o obj/crt/rcrt1.o obj/ldso/dlstart.lo: $(srcdir)/ar
 
 obj/crt/rcrt1.o: $(srcdir)/ldso/dlstart.c
 
-obj/crt/Scrt1.o obj/crt/rcrt1.o: CFLAGS_ALL += -fPIC
+obj/crt/Scrt1.o obj/crt/rcrt1.o crt/sgxcrt.o: CFLAGS_ALL += -fPIC
 
 obj/crt/$(ARCH)/crti.o: $(srcdir)/crt/$(ARCH)/crti.s
 
@@ -163,14 +168,11 @@ obj/%.lo: $(srcdir)/%.S
 obj/%.lo: $(srcdir)/%.c $(GENH) $(IMPH)
 	$(CC_CMD)
 
-lib/libc.so: $(LOBJS) $(LDSO_OBJS)
-	$(CC) $(CFLAGS_ALL) $(LDFLAGS_ALL) -nostdlib -shared \
-	-Wl,-e,_dlstart -o $@ $(LOBJS) $(LDSO_OBJS) $(LIBCC)
-
-lib/libc.a: $(AOBJS)
-	rm -f $@
-	$(AR) rc $@ $(AOBJS)
-	$(RANLIB) $@
+lib/libsgxlkl.so: $(LOBJS) $(LDSO_OBJS) $(cryptsetuplib) $(lkllib) $(sgxlkllib)
+	@mkdir -p obj/sgxlkl
+	cd obj/sgxlkl/; ar -x $(sgxlkllib)
+	$(CC) $(CFLAGS_ALL) $(LDFLAGS_ALL) -nostdlib -shared -Wl,-z,defs \
+	-Wl,-e,_dlstart_c -o $@ lib/sgxcrt.o $(LOBJS) obj/sgxlkl/*.o $(LDSO_OBJS) $(LIBCC) $(cryptsetuplib) $(lkllib) $(openssllib)
 
 $(EMPTY_LIBS):
 	rm -f $@
@@ -181,17 +183,6 @@ lib/%.o: obj/crt/$(ARCH)/%.o
 
 lib/%.o: obj/crt/%.o
 	cp $< $@
-
-lib/musl-gcc.specs: $(srcdir)/tools/musl-gcc.specs.sh config.mak
-	sh $< "$(includedir)" "$(libdir)" "$(LDSO_PATHNAME)" > $@
-
-obj/musl-gcc: config.mak
-	printf '#!/bin/sh\nexec "$${REALGCC:-$(WRAPCC_GCC)}" "$$@" -specs "%s/musl-gcc.specs"\n' "$(libdir)" > $@
-	chmod +x $@
-
-obj/%-clang: $(srcdir)/tools/%-clang.in config.mak
-	sed -e 's!@CC@!$(WRAPCC_CLANG)!g' -e 's!@PREFIX@!$(prefix)!g' -e 's!@INCDIR@!$(includedir)!g' -e 's!@LIBDIR@!$(libdir)!g' -e 's!@LDSO@!$(LDSO_PATHNAME)!g' $< > $@
-	chmod +x $@
 
 $(DESTDIR)$(bindir)/%: obj/%
 	$(INSTALL) -D $< $@
@@ -214,16 +205,19 @@ $(DESTDIR)$(includedir)/bits/%: obj/include/bits/%
 $(DESTDIR)$(includedir)/%: $(srcdir)/include/%
 	$(INSTALL) -D -m 644 $< $@
 
-$(DESTDIR)$(LDSO_PATHNAME): $(DESTDIR)$(libdir)/libc.so
-	$(INSTALL) -D -l $(libdir)/libc.so $@ || true
+$(DESTDIR)$(includedir)/%: $(lklheaderdir)/%
+	$(INSTALL) -D -m 644 $< $@
 
-install-libs: $(ALL_LIBS:lib/%=$(DESTDIR)$(libdir)/%) $(if $(SHARED_LIBS),$(DESTDIR)$(LDSO_PATHNAME),)
+$(DESTDIR)$(LDSO_PATHNAME): $(DESTDIR)$(libdir)/libsgxlkl.so
+	$(INSTALL) -D -l $(libdir)/libsgxlkl.so $@ || true
+
+install-libs: $(ALL_LIBS:lib/%=$(DESTDIR)$(libdir)/%)
 
 install-headers: $(ALL_INCLUDES:include/%=$(DESTDIR)$(includedir)/%)
 
 install-tools: $(ALL_TOOLS:obj/%=$(DESTDIR)$(bindir)/%)
 
-install: install-libs install-headers install-tools
+install: install-libs install-headers install-tools install-sgx-tools
 
 musl-git-%.tar.gz: .git
 	 git --git-dir=$(srcdir)/.git archive --format=tar.gz --prefix=$(patsubst %.tar.gz,%,$@)/ -o $@ $(patsubst musl-git-%.tar.gz,%,$@)

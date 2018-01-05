@@ -34,7 +34,7 @@ static void handler(int sig)
 	while (a_cas_p(&head, ch.next, &ch) != ch.next);
 
 	if (a_cas(&target_tid, ch.tid, 0) == (ch.tid | 0x80000000))
-		__syscall(SYS_futex, &target_tid, FUTEX_UNLOCK_PI|FUTEX_PRIVATE);
+            __syscall(SYS_futex, &target_tid, FUTEX_UNLOCK_PI|FUTEX_PRIVATE, 0, 0, 0, 0);
 
 	sem_wait(&ch.target_sem);
 	callback(context);
@@ -136,7 +136,7 @@ void __synccall(void (*func)(void *), void *ctx)
 				ts.tv_nsec -= 1000000000;
 			}
 			r = -__syscall(SYS_futex, &target_tid,
-				FUTEX_LOCK_PI|FUTEX_PRIVATE, 0, &ts);
+                                       FUTEX_LOCK_PI|FUTEX_PRIVATE, 0, &ts, 0, 0);
 
 			/* Obtaining the lock means the thread responded. ESRCH
 			 * means the target thread exited, which is okay too. */

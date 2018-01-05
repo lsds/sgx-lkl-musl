@@ -161,3 +161,22 @@ to be subject to copyright, resulting in confusion over whether it
 negated the permissions granted in the license. In the spirit of
 permissive licensing, and of not having licensing issues being an
 obstacle to adoption, that text has been removed.
+
+----------------------------------------------------------------------
+
+The following files have substantial modifications made for SGX-LKL. For
+these modifications the following copyright applies:
+
+Copyright 2016, 2017, 2018 Imperial College London
+Copyright 2016, 2017 TU Dresden (under SCONE open source license)
+
+crt/sgxcrt.c
+src/env/__init_tls.c
+src/env/__libc_start_main.c
+
+Copyright 2016, 2017, 2018 Imperial College London
+
+ldso/dlstart.c
+ldso/dynlink.c
+src/internal/syscall.h
+src/misc/syscall.c

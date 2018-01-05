@@ -5,6 +5,7 @@
 #include <sys/mman.h>
 #include <string.h>
 #include <stddef.h>
+#include <lthread.h>
 
 void *__mmap(void *, size_t, int, int, int, off_t);
 int __munmap(void *, size_t);
@@ -18,6 +19,8 @@ weak_alias(dummy_0, __release_ptc);
 weak_alias(dummy_0, __pthread_tsd_run_dtors);
 weak_alias(dummy_0, __do_orphaned_stdio_locks);
 weak_alias(dummy_0, __dl_thread_cleanup);
+
+#if 0
 
 _Noreturn void __pthread_exit(void *result)
 {
@@ -114,18 +117,6 @@ _Noreturn void __pthread_exit(void *result)
 	}
 
 	for (;;) __syscall(SYS_exit, 0);
-}
-
-void __do_cleanup_push(struct __ptcb *cb)
-{
-	struct pthread *self = __pthread_self();
-	cb->__next = self->cancelbuf;
-	self->cancelbuf = cb;
-}
-
-void __do_cleanup_pop(struct __ptcb *cb)
-{
-	__pthread_self()->cancelbuf = cb->__next;
 }
 
 static int start(void *p)
@@ -298,6 +289,45 @@ int __pthread_create(pthread_t *restrict res, const pthread_attr_t *restrict att
 fail:
 	__release_ptc();
 	return EAGAIN;
+}
+#endif
+
+void __do_cleanup_push(struct __ptcb *cb)
+{
+	struct lthread *self = lthread_self();
+        struct lthread_sched *sched;
+        if (self) {
+                cb->__next = self->cancelbuf;
+                self->cancelbuf = cb;
+        }
+}
+
+void __do_cleanup_pop(struct __ptcb *cb)
+{
+        struct lthread *self = lthread_self();
+        if (self) {
+                self->cancelbuf = cb->__next;
+        }
+}
+
+int __pthread_create(pthread_t *restrict res, const pthread_attr_t *restrict attrp, void *(*entry)(void *), void *restrict arg)
+{
+    int r, detach = 0;
+    struct lthread_attr a = {0};
+    if (attrp) {
+            pthread_attr_getstack(attrp, &a.stack, &a.stack_size);
+            pthread_attr_getdetachstate(attrp, &detach);
+            if (detach == PTHREAD_CREATE_DETACHED) {
+                a.state = BIT(LT_ST_DETACH);
+            }
+    }
+    r = lthread_create((struct lthread **)res, &a, (void*)entry, arg);
+    return r;
+}
+
+void __pthread_exit(void *result)
+{
+    return lthread_exit(result);
 }
 
 weak_alias(__pthread_exit, pthread_exit);

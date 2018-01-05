@@ -15,7 +15,7 @@ struct tm *getdate(const char *s)
 	char fmt[100], *p;
 	int cs;
 
-	pthread_setcancelstate(PTHREAD_CANCEL_DEFERRED, &cs);
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &cs);
 
 	if (!datemsk) {
 		getdate_err = 1;
