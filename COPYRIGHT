@@ -168,7 +168,7 @@ The following files have substantial modifications made for SGX-LKL. For
 these modifications the following copyright applies:
 
 Copyright 2016, 2017, 2018 Imperial College London
-Copyright 2016, 2017 TU Dresden (under SCONE open source license)
+Copyright 2016, 2017 TU Dresden (under SCONE source code license)
 
 crt/sgxcrt.c
 src/env/__init_tls.c
