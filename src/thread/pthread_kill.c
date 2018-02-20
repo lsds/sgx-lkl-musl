@@ -1,7 +1,10 @@
 #include "pthread_impl.h"
+#include "signal.h"
 
 int pthread_kill(pthread_t t, int sig)
 {
-        lthread_cancel(t);
+	if(sig == SIGTERM || sig == SIGKILL) {
+		lthread_cancel(t);
+	}
 	return 0;
 }
