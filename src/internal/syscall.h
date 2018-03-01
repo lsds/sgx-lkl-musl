@@ -1,7 +1,6 @@
 #ifndef _INTERNAL_SYSCALL_H
 #define _INTERNAL_SYSCALL_H
 
-#include <errno.h>
 #include <lthread.h>
 #include <stdio.h>
 #include <sys/syscall.h>
@@ -96,10 +95,7 @@ static inline long __filter_syscall0(long n) {
 	} else {
 		long res = lkl_syscall(n, params);
 		__log_lkl_syscall(n, params, res);
-		if (res < 0) {
-			errno = -res;
-			res = -1;
-		}
+
 		return res;
 	}
 }
@@ -118,10 +114,7 @@ static inline long __filter_syscall1(long n, long a1) {
 		params[0] = a1;
 		long res = lkl_syscall(n, params);
 		__log_lkl_syscall(n, params, res);
-		if (res < 0) {
-			errno = -res;
-			res = -1;
-		}
+
 		return res;
 	}
 }
@@ -147,10 +140,7 @@ static inline long __filter_syscall2(long n, long a1, long a2) {
 		params[1] = (long) &tmp_stat;
 		long res = lkl_syscall(n, params);
 		__log_lkl_syscall(n, params, res);
-		if (res < 0) {
-			errno = -res;
-			res = -1;
-		} else {
+		if (res == 0) {
 			struct stat *res_stat = (struct stat*) a2;
 
 			res_stat->st_dev = tmp_stat.st_dev;
@@ -182,10 +172,7 @@ static inline long __filter_syscall2(long n, long a1, long a2) {
 		params[1] = a2;
 		long res = lkl_syscall(n, params);
 		__log_lkl_syscall(n, params, res);
-		if (res < 0) {
-			errno = -res;
-			res = -1;
-		}
+
 		return res;
 	}
 }
@@ -213,10 +200,7 @@ static inline long __filter_syscall3(long n, long a1, long a2, long a3) {
 		params[2] = a3;
 		long res = lkl_syscall(n, params);
 		__log_lkl_syscall(n, params, res);
-		if (res < 0) {
-			errno = -res;
-			res = -1;
-		}
+
 		return res;
 	}
 }
@@ -228,10 +212,10 @@ static inline long __filter_syscall4(long n, long a1, long a2, long a3, long a4)
 	} else if (n == SYS_rt_sigtimedwait) {
 		return (long)host_syscall_SYS_rt_sigtimedwait((sigset_t *)a1, (siginfo_t*)a2, (struct timespec*)a3, (unsigned long)a4);
 	}
-#ifndef SGXLKL_HW 
+#ifndef SGXLKL_HW
     else if (n == SYS_rt_sigaction) {
         return ((int)host_syscall_SYS_rt_sigaction((int)a1, (struct sigaction *)a2, (struct sigaction *)a3, (unsigned long)a4)); 
-    } 
+    }
 #endif
     else {
 		params[0] = a1;
@@ -240,10 +224,7 @@ static inline long __filter_syscall4(long n, long a1, long a2, long a3, long a4)
 		params[3] = a4;
 		long res = lkl_syscall(n, params);
 		__log_lkl_syscall(n, params, res);
-		if (res < 0) {
-			errno = -res;
-			res = -1;
-		}
+
 		return res;
 	}
 }
@@ -260,10 +241,7 @@ static inline long __filter_syscall5(long n, long a1, long a2, long a3, long a4,
 		params[4] = a5;
 		long res = lkl_syscall(n, params);
 		__log_lkl_syscall(n, params, res);
-		if (res < 0) {
-			errno = -res;
-			res = -1;
-		}
+
 		return res;
 	}
 }
@@ -282,10 +260,7 @@ static inline long __filter_syscall6(long n, long a1, long a2, long a3, long a4,
 			params[3]=MAP_PRIVATE;
 			long res = lkl_syscall(n, params);
 			__log_lkl_syscall(n, params, res);
-			if (res < 0) {
-				errno = -res;
-				res = -1;
-			}
+
 			return res;
 		}
 		else
@@ -305,10 +280,7 @@ static inline long __filter_syscall6(long n, long a1, long a2, long a3, long a4,
 		params[5] = a6;
 		long res = lkl_syscall(n, params);
 		__log_lkl_syscall(n, params, res);
-		if (res < 0) {
-			errno = -res;
-			res = -1;
-		}
+
 		return res;
 	}
 }

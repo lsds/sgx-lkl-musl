@@ -3,6 +3,9 @@
 
 long __syscall_ret(unsigned long r)
 {
-        /* the errno value is extracted outside of enclave */
+	if (r > -4096UL) {
+		errno = -r;
+		return -1;
+	}
 	return r;
 }
