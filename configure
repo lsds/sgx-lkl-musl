@@ -15,8 +15,6 @@ Configuration:
   --lkllib=.../liblkl.a   location of exported LKL static library [required]
   --sgxlklheaderdir=DIR   location of SGX-LKL-specific  headers [required]
   --sgxlkllib=.../sgx.a   location of sgxlklib [required]
-  --opensslheaderdir=DIR  location of exported OpenSSL headers
-  --openssllib=.../misc.a location of exported OpenSSL static library
   --cryptsetupheaderdir=DIR location of exported cryptsetup headers [required]
   --cryptsetuplib=.../misc.a location of exported cryptsetup static library [required]
 
@@ -135,8 +133,6 @@ lklheaderdir=
 lkllib=
 sgxlklheaderdir=
 sgxlkllib=
-opensslheaderdir=
-openssllib=
 cryptsetupheaderdir=
 cryptsetuplib=
 prefix=/usr/local/musl
@@ -168,8 +164,6 @@ case "$arg" in
 --lkllib=*) lkllib=${arg#*=} ;;
 --sgxlklheaderdir=*) sgxlklheaderdir=${arg#*=} ;;
 --sgxlkllib=*) sgxlkllib=${arg#*=} ;;
---opensslheaderdir=*) opensslheaderdir=${arg#*=} ;;
---openssllib=*) openssllib=${arg#*=} ;;
 --cryptsetupheaderdir=*) cryptsetupheaderdir=${arg#*=} ;;
 --cryptsetuplib=*) cryptsetuplib=${arg#*=} ;;
 --prefix=*) prefix=${arg#*=} ;;
@@ -758,13 +752,6 @@ fi
 if test -z "$sgxlkllib"; then
 	fail "$0: error: SGXLKL lib path required"
 fi
-has_openssl=yes
-if test -z "$opensslheaderdir"; then
-	has_openssl=no
-fi
-if test -z "$openssllib"; then
-	has_openssl=no
-fi
 has_cryptsetup=yes
 if test -z "$cryptsetupheaderdir"; then
 	has_cryptsetup=no
@@ -796,8 +783,6 @@ lklheaderdir = $lklheaderdir
 lkllib = $lkllib
 sgxlklheaderdir = $sgxlklheaderdir
 sgxlkllib = $sgxlkllib
-opensslheaderdir = $opensslheaderdir
-openssllib = $openssllib
 cryptsetupheaderdir = $cryptsetupheaderdir
 cryptsetuplib = $cryptsetuplib
 prefix = $prefix
@@ -829,8 +814,6 @@ test "x$shared" = xno && echo "SHARED_LIBS ="
 test "x$cc_family" = xgcc && echo 'WRAPCC_GCC = $(CC)'
 test "x$cc_family" = xclang && echo 'WRAPCC_CLANG = $(CC)'
 test "x$pic_default" = xyes && echo 'AOBJS = $(LOBJS)'
-test "x$has_openssl" = xyes && echo 'OPENSSL_CFLAGS = '
-test "x$has_openssl" = xno && echo 'OPENSSL_CFLAGS = -DNO_OPENSSL'
 exec 1>&3 3>&-
 
 test "$srcdir" = "." || ln -sf $srcdir/Makefile .

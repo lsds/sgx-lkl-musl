@@ -49,8 +49,8 @@ CFLAGS_C99FSE = -std=c99 -ffreestanding -nostdinc
 
 
 CFLAGS_ALL = $(CFLAGS_C99FSE)
-CFLAGS_ALL += -D_XOPEN_SOURCE=700 -I$(srcdir)/arch/$(ARCH) -I$(srcdir)/arch/generic -Iobj/src/internal -I$(srcdir)/src/internal -Iobj/include -I$(srcdir)/include -isystem $(lklheaderdir)/ -isystem $(sgxlklheaderdir)/ -isystem $(opensslheaderdir)/ -isystem $(cryptsetupheaderdir)/
-CFLAGS_ALL += $(CPPFLAGS) $(CFLAGS_AUTO) $(CFLAGS) $(CFLAGS_SGX) $(OPENSSL_CFLAGS)
+CFLAGS_ALL += -D_XOPEN_SOURCE=700 -I$(srcdir)/arch/$(ARCH) -I$(srcdir)/arch/generic -Iobj/src/internal -I$(srcdir)/src/internal -Iobj/include -I$(srcdir)/include -isystem $(lklheaderdir)/ -isystem $(sgxlklheaderdir)/ -isystem $(cryptsetupheaderdir)/
+CFLAGS_ALL += $(CPPFLAGS) $(CFLAGS_AUTO) $(CFLAGS) $(CFLAGS_SGX)
 
 # don't allow dynamic linker to use mmap
 CFLAGS_ALL += -DDL_NOMMU_SUPPORT=1
@@ -172,7 +172,7 @@ lib/libsgxlkl.so: $(LOBJS) $(LDSO_OBJS) $(cryptsetuplib) $(lkllib) $(sgxlkllib)
 	@mkdir -p obj/sgxlkl
 	cd obj/sgxlkl/; ar -x $(sgxlkllib)
 	$(CC) $(CFLAGS_ALL) $(LDFLAGS_ALL) -nostdlib -shared -Wl,-z,defs \
-	-Wl,-e,_dlstart_c -o $@ lib/sgxcrt.o $(LOBJS) obj/sgxlkl/*.o $(LDSO_OBJS) $(LIBCC) $(cryptsetuplib) $(lkllib) $(openssllib)
+	-Wl,-e,_dlstart_c -o $@ lib/sgxcrt.o $(LOBJS) obj/sgxlkl/*.o $(LDSO_OBJS) $(LIBCC) $(cryptsetuplib) $(lkllib)
 
 $(EMPTY_LIBS):
 	rm -f $@
