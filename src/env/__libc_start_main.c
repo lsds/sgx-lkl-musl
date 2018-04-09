@@ -9,7 +9,7 @@
 #include "lkl/asm/host_ops.h"
 #include "lkl/setup.h"
 #include "lthread.h"
-#include "pthread_impl.h" 
+#include "pthread_impl.h"
 #include "sgxlkl_debug.h"
 #include "syscall.h"
 #include "hostqueues.h"
@@ -184,7 +184,6 @@ static int startmain(enclave_config_t *encl) {
                 for (i = 0; i < sizeof(ps)/sizeof(ps[0]); i++) {
                     SGXLKL_VERBOSE("%s: %zu\n", ps[i].name, parseenv(ps[i].name, ps[i].def, ps[i].max));
                 }
-                SGXLKL_VERBOSE("SGXLKL_HEAP: %zu\n", get_enclave_parms()->heap_size);
                 SGXLKL_VERBOSE("__libc_get_version: %s\n", __libc_get_version());
                 SGXLKL_VERBOSE("Maximum enclave threads (TCS): %d\n", get_enclave_parms()->tcsn);
         }

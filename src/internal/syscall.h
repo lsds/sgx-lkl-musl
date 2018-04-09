@@ -35,8 +35,8 @@ long __syscall_ret(unsigned long), __syscall(syscall_arg_t, ...),
 
 const char* lkl_strerror(int err);
 
-extern int sgxlkl_trace_syscall;
-extern int sgxlkl_trace_host_syscall;
+extern int sgxlkl_trace_lkl_syscall;
+extern int sgxlkl_trace_internal_syscall;
 extern int sgxlkl_use_host_network;
 
 #undef __LKL_SYSCALL
@@ -54,7 +54,10 @@ static inline void __log_syscall(int type, long n, long res, int params_len, ...
 	const char* name = NULL;
 	char errmsg[255] = {0};
 
-	if (!sgxlkl_trace_syscall && !sgxlkl_trace_host_syscall)
+	if (!sgxlkl_trace_lkl_syscall && type == SGXLKL_LKL_SYSCALL)
+		return;
+
+	if (!sgxlkl_trace_internal_syscall && type == SGXLKL_INTERNAL_SYSCALL)
 		return;
 
 	long params[6] = {0};
@@ -101,7 +104,6 @@ static inline long __filter_syscall0(long n) {
 		return res;
 	} else if (n == SYS_munlockall) {
 		long res = (long)host_syscall_SYS_munlockall();
-		__log_syscall(SGXLKL_HOST_SYSCALL, n, res, 0);
 		return res;
 	} else {
 		long res = lkl_syscall(n, params);
@@ -114,7 +116,6 @@ static inline long __filter_syscall1(long n, long a1) {
 	long params[6] = {0};
 	if (n == SYS_set_tid_address) {
 		long res = (long)host_syscall_SYS_set_tid_address((int*)a1);
-		__log_syscall(SGXLKL_HOST_SYSCALL, n, res, 1, a1);
 		return res;
 	} else if (n == SYS_exit) {
 		host_syscall_SYS_exit((int)a1);
@@ -136,11 +137,9 @@ static inline long __filter_syscall2(long n, long a1, long a2) {
 
 	if (n == SYS_kill) {
 		long res = (long)host_syscall_SYS_kill((pid_t)a1, (int)a2);
-		__log_syscall(SGXLKL_HOST_SYSCALL, n, res, 2, a1, a2);
 		return res;
 	} else if (n == SYS_tkill) {
 		long res = (long)host_syscall_SYS_tkill((int)a1, (int)a2);
-		__log_syscall(SGXLKL_HOST_SYSCALL, n, res, 2, a1, a2);
 		return res;
 	} else if (n == SYS_munmap) {
 		long res = (long)syscall_SYS_munmap((void*)a1, (size_t)a2);
@@ -148,15 +147,12 @@ static inline long __filter_syscall2(long n, long a1, long a2) {
 		return res;
 	} else if (n == SYS_nanosleep) {
 		long res = (long)host_syscall_SYS_nanosleep((const struct timespec*)a1, (struct timespec*)a2);
-		__log_syscall(SGXLKL_HOST_SYSCALL, n, res, 2, a1, a2);
 		return res;
 	} else if (n == SYS_clock_gettime) {
 		long res = (long)host_syscall_SYS_clock_gettime((clockid_t)a1, (struct timespec*)a2);
-		__log_syscall(SGXLKL_HOST_SYSCALL, n, res, 2, a1, a2);
 		return res;
 	} else if (n == SYS_clock_getres) {
 		long res = (long)host_syscall_SYS_clock_getres((clockid_t)a1, (struct timespec*)a2);
-		__log_syscall(SGXLKL_HOST_SYSCALL, n, res, 2, a1, a2);
 		return res;
 	} else if (n == SYS_stat) {
 		struct lkl_stat tmp_stat;
@@ -187,15 +183,12 @@ static inline long __filter_syscall2(long n, long a1, long a2) {
 	      	return res;
 	} else if (n == SYS_sigaltstack) {
 		long res = (long)host_syscall_SYS_sigaltstack((stack_t*)a1, (stack_t*)a2);
-		__log_syscall(SGXLKL_HOST_SYSCALL, n, res, 2, a1, a2);
 		return res;
 	} else if (n == SYS_rt_sigpending) {
 		long res = (long)host_syscall_SYS_rt_sigpending((sigset_t *)a1, (unsigned long)a2);
-		__log_syscall(SGXLKL_HOST_SYSCALL, n, res, 2, a1, a2);
 		return res;
 	} else if (n == SYS_rt_sigsuspend) {
 		long res = (long)host_syscall_SYS_rt_sigsuspend((sigset_t *)a1, (unsigned long)a2);
-		__log_syscall(SGXLKL_HOST_SYSCALL, n, res, 2, a1, a2);
 		return res;
 	} else {
 		params[0] = a1;
@@ -212,30 +205,24 @@ static inline long __filter_syscall3(long n, long a1, long a2, long a3) {
 
 	if (n == SYS_writev && (a1 == STDOUT_FILENO || a1 == STDERR_FILENO)) {
 		long res = (long)host_syscall_SYS_writev((int)a1, (const struct iovec*)a2, (int)a3);
-		__log_syscall(SGXLKL_HOST_SYSCALL, n, res, 3, a1, a2, a3);
 		return res;
 	} else if (n == SYS_write && (a1 == STDOUT_FILENO || a1 == STDERR_FILENO)) {
 		// Don't log write host syscalls as logging causes a write host syscall itself.
 		return (long)host_syscall_SYS_write((int)a1, (const void*)a2, (long)a3);
 	} else if (n == SYS_ioctl && (a1 == STDOUT_FILENO || a1 == STDERR_FILENO || a1 == STDIN_FILENO)) {
 		long res = (long)host_syscall_SYS_ioctl((int)a1, (unsigned long)a2, (void*)a3);
-		__log_syscall(SGXLKL_HOST_SYSCALL, n, res, 3, a1, a2, a3);
 		return res;
 	} else if (n == SYS_read && (a1 == STDIN_FILENO)) {
 		long res = (long)host_syscall_SYS_read((int)a1, (char*)a2, (size_t)a3);
-		__log_syscall(SGXLKL_HOST_SYSCALL, n, res, 3, a1, a2, a3);
 		return res;
 	} else if (n == SYS_readv && (a1 == STDIN_FILENO)) {
 		long res = (long)host_syscall_SYS_readv((int)a1, (struct iovec*)a2, (int)a3);
-		__log_syscall(SGXLKL_HOST_SYSCALL, n, res, 3, a1, a2, a3);
 		return res;
 	} else if (n == SYS_msync) {
 		long res = (long)syscall_SYS_msync((void*)a1, (size_t)a2, (int)a3);
-		__log_syscall(SGXLKL_HOST_SYSCALL, n, res, 3, a1, a2, a3);
 		return res;
 	} else if (n == SYS_mprotect) {
 		long res = (long)host_syscall_SYS_mprotect((void*)a1, (size_t)a2, (int)a3);
-		__log_syscall(SGXLKL_HOST_SYSCALL, n, res, 3, a1, a2, a3);
 		return res;
 	} else {
 		params[0] = a1;
@@ -252,17 +239,14 @@ static inline long __filter_syscall4(long n, long a1, long a2, long a3, long a4)
 	long params[6] = {0};
 	if (n == SYS_rt_sigprocmask) {
 		long res = (long)host_syscall_SYS_rt_sigprocmask((int)a1, (void*)a2, (sigset_t*)a3, (unsigned long)a4);
-		__log_syscall(SGXLKL_HOST_SYSCALL, n, res, 4, a1, a2, a3, a4);
 		return res;
 	} else if (n == SYS_rt_sigtimedwait) {
 		long res = (long)host_syscall_SYS_rt_sigtimedwait((sigset_t *)a1, (siginfo_t*)a2, (struct timespec*)a3, (unsigned long)a4);
-		__log_syscall(SGXLKL_HOST_SYSCALL, n, res, 4, a1, a2, a3, a4);
 		return res;
 	}
 #ifndef SGXLKL_HW
 	else if (n == SYS_rt_sigaction) {
 		long res = (long) host_syscall_SYS_rt_sigaction((int)a1, (struct sigaction *)a2, (struct sigaction *)a3, (unsigned long)a4);
-		__log_syscall(SGXLKL_HOST_SYSCALL, n, res, 4, a1, a2, a3, a4);
 		return res;
 	}
 #endif
