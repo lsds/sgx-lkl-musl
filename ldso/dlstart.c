@@ -23,7 +23,7 @@ void* _dlstart_c(enclave_config_t *encl)
 	size_t i, aux[AUX_CNT], dyn[DYN_CNT];
 	size_t *rel, rel_size, base, *dynv, *auxv, *envp;
 
-	auxv = encl->auxv;
+	auxv = (size_t*) encl->auxv;
         
 	struct fdpic_loadseg *segs, fakeseg;
 	size_t j;
@@ -32,9 +32,9 @@ void* _dlstart_c(enclave_config_t *encl)
 		aux[auxv[i]] = auxv[i+1];
 
 #ifdef SGXLKL_HW
-	base = (char*) encl->base + encl->heapsize;
+	base = (size_t) ((char*) encl->base + encl->heapsize);
 #else
-	base = encl->base;
+	base = (size_t) encl->base;
 #endif
 
 

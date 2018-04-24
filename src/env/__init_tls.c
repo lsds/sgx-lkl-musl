@@ -95,7 +95,7 @@ void __init_utls(size_t base, Elf64_Phdr *tls_phdr)
         libc.tls_head = &main_tls;
     }
 #else
-        main_tls.image = get_enclave_parms()->tls_vaddr + get_enclave_parms()->base;
+        main_tls.image = (void*)(get_enclave_parms()->tls_vaddr + get_enclave_parms()->base);
         main_tls.len = get_enclave_parms()->tls_filesz;
         main_tls.size = get_enclave_parms()->tls_memsz;
         main_tls.align = 8;//FIXME

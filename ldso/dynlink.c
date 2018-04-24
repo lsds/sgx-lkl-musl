@@ -585,7 +585,7 @@ static void __gdb_load_debug_symbols(int fd, struct dso *dso, Ehdr *eh)
 		if (lseek(fd, eh->e_shoff + (eh->e_shentsize * eh->e_shstrndx), SEEK_SET) == -1) goto fail;
 		int n, r;
 		char *q;
-		for (n=sizeof(Elf64_Shdr), q=sh_str; n;) {
+		for (n = sizeof(Elf64_Shdr), q = (void*) sh_str; n;) {
 			r = read(fd, q, n);
 			q+=r;
 			n-=r;
@@ -595,7 +595,7 @@ static void __gdb_load_debug_symbols(int fd, struct dso *dso, Ehdr *eh)
 		sh_strtab = malloc(sh_str->sh_size);
 		if (sh_strtab == NULL) goto fail;
 		if (lseek(fd, sh_str->sh_offset, SEEK_SET) == -1) goto fail;
-		for (n=sh_str->sh_size, q=sh_strtab; n;) {
+		for (n = sh_str->sh_size, q = (void*) sh_strtab; n;) {
 			r = read(fd, q, n);
 			q+=r;
 			n-=r;
@@ -609,7 +609,7 @@ static void __gdb_load_debug_symbols(int fd, struct dso *dso, Ehdr *eh)
 			int readoffset = 0;
 
 			if (lseek(fd, eh->e_shoff + (eh->e_shentsize * i), SEEK_SET) == -1) goto fail;
-			for (n=eh->e_shentsize, q=sh; n;) {
+			for (n = eh->e_shentsize, q = (void*) sh; n;) {
 				r = read(fd, q, n);
 				q+=r;
 				n-=r;
@@ -1600,7 +1600,7 @@ prepare_stack_and_jmp_to_exec(void *at_entry, char** argv, enclave_config_t *enc
 	register char **t;
 	register char **base;
 	register char **argvnew = argv;
-	register int argcnew = encl->argc - 1; /* first arg removed - disk image path */
+	register long argcnew = (long) encl->argc - 1; /* first arg removed - disk image path */
 	register void *app_entry = at_entry;
 
 	tosptr = (char**)tos;
@@ -1617,7 +1617,7 @@ prepare_stack_and_jmp_to_exec(void *at_entry, char** argv, enclave_config_t *enc
 		*(tosptr--) = *(t--);
 	}
 
-	*tosptr = argcnew;
+	*tosptr = (char*) argcnew;
 
 	CRTJMP(app_entry, tosptr);
 	for(;;);
@@ -1676,7 +1676,7 @@ void __dls3(enclave_config_t *encl, void *tos)
 		if (tls_phdr) {
 			// Initialise user-TLS again, this time with the target.
 			void __init_utls(size_t base, Elf64_Phdr *tls_phdr);
-			__init_utls(app.base, tls_phdr);
+			__init_utls((size_t) app.base, tls_phdr);
 		}
 		if (DL_FDPIC) app.loadmap = app_loadmap;
 		if (app.tls.size) app.tls.image = laddr(&app, tls_image);
