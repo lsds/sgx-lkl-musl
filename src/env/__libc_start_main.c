@@ -211,6 +211,7 @@ static int startmain(enclave_config_t *encl) {
 int __libc_init_enclave(int argc, char **argv, enclave_config_t *encl)
 {
         struct lthread *lt;
+        libc.vvar_base = encl->vvar;
 #ifndef SGXLKL_HW
         int c;
         while ((c = a_cas(&__libc_state, 0, 1)) == 1) {a_spin();}
