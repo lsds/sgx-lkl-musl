@@ -98,8 +98,6 @@ vdso_read_retry(const struct vsyscall_gtod_data *s, unsigned start)
 int __clock_gettime(clockid_t clk, struct timespec *ts)
 {
 	int r;
-	volatile struct vsyscall_gtod_data *ptr = (char *)libc.vvar_base + __vsyscall_gtod_data_offset;
-
 #ifdef VDSO_CGT_SYM
 	int (*f)(clockid_t, struct timespec *) =
 		(int (*)(clockid_t, struct timespec *))vdso_func;
@@ -115,7 +113,8 @@ int __clock_gettime(clockid_t clk, struct timespec *ts)
 	}
 #endif
 
-	if (clk == CLOCK_REALTIME) {
+	if (libc.vvar_base && clk == CLOCK_REALTIME) {
+		volatile struct vsyscall_gtod_data *ptr = (char *)libc.vvar_base + __vsyscall_gtod_data_offset;
 		unsigned seq;
 		uint64_t ns;
 
