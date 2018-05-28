@@ -118,12 +118,13 @@ int __clock_gettime(clockid_t clk, struct timespec *ts)
 		unsigned seq;
 		uint64_t ns;
 
-		do {
-			seq = vdso_read_begin(ptr);
+//		do {
+			//seq = vdso_read_begin(ptr);
+			seq = ptr->seq;
 			ts->tv_sec = ptr->wall_time_sec;
 			ns = ptr->wall_time_snsec;
 			ns >>= ptr->shift;
-		} while (vdso_read_retry(ptr, seq));
+//		} while (vdso_read_retry(ptr, seq));
 
 		ts->tv_sec += __iter_div_u64_rem(ns, 1000000000L, &ns);
 		ts->tv_nsec = ns;
