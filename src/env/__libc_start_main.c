@@ -233,7 +233,7 @@ int __libc_init_enclave(int argc, char **argv, enclave_config_t *encl)
 
         __init_libc(envp, argv[0], encl);
         __init_tls();
-         size_t futex_wake_spins = parseenv("SGXLKL_GET_TIME_VDSO", 0, ULONG_MAX) == 1 ? 1 : 500;
+         size_t futex_wake_spins = parseenv("SGXLKL_GETTIME_VDSO", 0, ULONG_MAX) == 1 ? 1 : 500;
          lthread_sched_global_init(parseenv("SGXLKL_ESPINS", 500, ULONG_MAX), parseenv("SGXLKL_ESLEEP", 16000, ULONG_MAX), futex_wake_spins);
         /* You shall not pass control to the application */
         _lthread_sched_init(encl->stacksize);
