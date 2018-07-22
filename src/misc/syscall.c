@@ -697,6 +697,8 @@ long syscall(long n, ...)
 	case 291:
 	case 294:
 	case 306:
+	case 323:
+	case 331:
 		return __syscall_ret(__syscall(calln,a));
 	case 4:
 	case 5:
@@ -773,6 +775,9 @@ long syscall(long n, ...)
 	case 300:
 	case 305:
 	case 308:
+	case 319:
+	case 324:
+	case 330:
 		return __syscall_ret(__syscall(calln,a,b));
 	case 0:
 	case 1:
@@ -850,6 +855,11 @@ long syscall(long n, ...)
 	case 304:
 	case 309:
 	case 313:
+	case 314:
+	case 317:
+	case 318:
+	case 321:
+	case 325:
 		return __syscall_ret(__syscall(calln,a,b,c));
 	case 13:
 	case 14:
@@ -893,6 +903,8 @@ long syscall(long n, ...)
 	case 297:
 	case 302:
 	case 307:
+	case 315:
+	case 329:
 		return __syscall_ret(__syscall(calln,a,b,c,d));
 	case 23:
 	case 54:
@@ -922,6 +934,9 @@ long syscall(long n, ...)
 	case 301:
 	case 303:
 	case 312:
+	case 316:
+	case 320:
+	case 322:
 		return __syscall_ret(__syscall(calln,a,b,c,d,e));
 	case 9:
 	case 44:
@@ -934,6 +949,9 @@ long syscall(long n, ...)
 	case 281:
 	case 310:
 	case 311:
+	case 326:
+	case 327:
+	case 328:
 		return __syscall_ret(__syscall(calln,a,b,c,d,e,f));
 	}
 	abort();
