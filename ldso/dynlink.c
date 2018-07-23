@@ -1659,12 +1659,12 @@ prepare_stack_and_jmp_to_exec(void *at_entry, char** argv, enclave_config_t *enc
 	register char **t;
 	register char **base;
 	register char **argvnew = argv;
-	register long argcnew = (long) encl->argc - 1; /* first arg removed - disk image path */
+	register long argcnew = (long) encl->argc; /* first arg removed - disk image path */
 	register void *app_entry = at_entry;
 
 	tosptr = (char**)tos;
 
-	base = t = argvnew + encl->argc + 1;
+	base = t = argvnew + encl->argc;
 	while (*t) { t++; }
 	while (t >= base) {
 		*(tosptr--) = *(t--);
@@ -1709,107 +1709,20 @@ void __dls3(enclave_config_t *encl, void *tos)
 		env_preload = getenv("LD_PRELOAD");
 	}
 
-	/* If the main program was already loaded by the kernel,
-	 * AT_PHDR will point to some location other than the dynamic
-	 * linker's program headers. */
-	if (0 && aux[AT_PHDR] != (size_t)ldso.phdr) {
-		size_t interp_off = 0;
-		size_t tls_image = 0;
-		Elf64_Phdr *tls_phdr = 0;
-		/* Find load address of the main program, via AT_PHDR vs PT_PHDR. */
-		Phdr *phdr = app.phdr = (void *)aux[AT_PHDR];
-		app.phnum = aux[AT_PHNUM];
-		app.phentsize = aux[AT_PHENT];
-		for (i=aux[AT_PHNUM]; i; i--, phdr=(void *)((char *)phdr + aux[AT_PHENT])) {
-			if (phdr->p_type == PT_PHDR)
-				app.base = (void *)(aux[AT_PHDR] - phdr->p_vaddr);
-			else if (phdr->p_type == PT_INTERP)
-				interp_off = (size_t)phdr->p_vaddr;
-			else if (phdr->p_type == PT_TLS) {
-				tls_phdr = phdr;
-				tls_image = phdr->p_vaddr;
-				app.tls.len = phdr->p_filesz;
-				app.tls.size = phdr->p_memsz;
-				app.tls.align = phdr->p_align;
-			}
-		}
-		if (tls_phdr) {
-			// Initialise user-TLS again, this time with the target.
-			void __init_utls(size_t base, Elf64_Phdr *tls_phdr);
-			__init_utls((size_t) app.base, tls_phdr);
-		}
-		if (DL_FDPIC) app.loadmap = app_loadmap;
-		if (app.tls.size) app.tls.image = laddr(&app, tls_image);
-		if (interp_off) ldso.name = laddr(&app, interp_off);
-		if ((aux[0] & (1UL<<AT_EXECFN))
-		    && strncmp((char *)aux[AT_EXECFN], "/proc/", 6))
-			app.name = (char *)aux[AT_EXECFN];
-		else
-			app.name = argv[0];
-		kernel_mapped_dso(&app);
-	} else {
-		int fd;
-		char *ldname = argv[0];
-		size_t l = strlen(ldname);
-		if (l >= 3 && !strcmp(ldname+l-3, "ldd")) ldd_mode = 1;
-		argv++;
-		while (argv[0] && argv[0][0]=='-' && argv[0][1]=='-') {
-			char *opt = argv[0]+2;
-			*argv++ = (void *)-1;
-			if (!*opt) {
-				break;
-			} else if (!memcmp(opt, "list", 5)) {
-				ldd_mode = 1;
-			} else if (!memcmp(opt, "library-path", 12)) {
-				if (opt[12]=='=') env_path = opt+13;
-				else if (opt[12]) *argv = 0;
-				else if (*argv) env_path = *argv++;
-			} else if (!memcmp(opt, "preload", 7)) {
-				if (opt[7]=='=') env_preload = opt+8;
-				else if (opt[7]) *argv = 0;
-				else if (*argv) env_preload = *argv++;
-			} else if (!memcmp(opt, "argv0", 5)) {
-				if (opt[5]=='=') replace_argv0 = opt+6;
-				else if (opt[5]) *argv = 0;
-				else if (*argv) replace_argv0 = *argv++;
-			} else {
-				argv[0] = 0;
-			}
-		}
-		argv[-1] = (void *)(argc - (argv-argv_orig));
-		if (!argv[0]) {
-			dprintf(2, "musl libc (" LDSO_ARCH ")\n"
-				"Version %s\n"
-				"Dynamic Program Loader\n"
-				"Usage: %s [options] [--] pathname%s\n",
-				__libc_get_version(), ldname,
-				ldd_mode ? "" : " [args]");
-			_exit(1);
-		}
-		fd = open(argv[0], O_RDONLY);
-		if (fd < 0) {
-			dprintf(2, "%s: cannot load %s: %s\n", ldname, argv[0], strerror(errno));
-			_exit(1);
-		}
-		Ehdr *ehdr = (void *)map_library(fd, &app);
-		if (!ehdr) {
-			dprintf(2, "%s: %s: Not a valid dynamic program\n", ldname, argv[0]);
-			_exit(1);
-		}
-		close(fd);
-		ldso.name = ldname;
-		app.name = argv[0];
-		aux[AT_ENTRY] = (size_t)laddr(&app, ehdr->e_entry);
-		/* Find the name that would have been used for the dynamic
-		 * linker had ldd not taken its place. */
-		if (ldd_mode) {
-			for (i=0; i<app.phnum; i++) {
-				if (app.phdr[i].p_type == PT_INTERP)
-					ldso.name = laddr(&app, app.phdr[i].p_vaddr);
-			}
-			dprintf(1, "\t%s (%p)\n", ldso.name, ldso.base);
-		}
+	int fd = open(argv[0], O_RDONLY);
+	if (fd < 0) {
+		dprintf(2, "Cannot load %s: %s\n", argv[0], strerror(errno));
+		_exit(1);
 	}
+	Ehdr *ehdr = (void *)map_library(fd, &app);
+	if (!ehdr) {
+		dprintf(2, "%s: Not a valid dynamic program\n", argv[0]);
+		_exit(1);
+	}
+	close(fd);
+	app.name = argv[0];
+	aux[AT_ENTRY] = (size_t)laddr(&app, ehdr->e_entry);
+
 	if (app.tls.size) {
 		libc.tls_head = tls_tail = &app.tls;
 		app.tls_id = tls_cnt = 1;
@@ -1843,7 +1756,7 @@ void __dls3(enclave_config_t *encl, void *tos)
 	head = tail = syms_tail = &app;
 
 	/* Donate unused parts of app and library mapping to malloc */
-	//TODO (cp3213) reclaim_gaps still seems to be broken (with up-to-date musl/lkl)
+	//TODO (cpriebe) reclaim_gaps still seems to be broken (with up-to-date musl/lkl)
 	//reclaim_gaps(&app);
 	//reclaim_gaps(&ldso);
 
@@ -1915,7 +1828,7 @@ void __dls3(enclave_config_t *encl, void *tos)
 
 
 	// Adjust /proc/self/exe
-	int fd = open(app.name, O_RDONLY);
+	fd = open(app.name, O_RDONLY);
 	prctl(PR_SET_MM, PR_SET_MM_EXE_FILE, fd, 0, 0);
 	close(fd);
 
