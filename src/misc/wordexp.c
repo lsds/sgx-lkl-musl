@@ -11,17 +11,10 @@
 #include <fcntl.h>
 #include "pthread_impl.h"
 
-#if 0
 static void reap(pid_t pid)
 {
 	int status;
-	for (;;) {
-		if (waitpid(pid, &status, 0) < 0) {
-			if (errno != EINTR) return;
-		} else {
-			if (WIFEXITED(status)) return;
-		}
-	}
+	while (waitpid(pid, &status, 0) < 0 && errno == EINTR);
 }
 
 static char *getword(FILE *f)
@@ -191,14 +184,4 @@ void wordfree(wordexp_t *we)
 	free(we->we_wordv);
 	we->we_wordv = 0;
 	we->we_wordc = 0;
-}
-#endif
-
-int wordexp(const char *restrict s, wordexp_t *restrict we, int flags)
-{
-        return WRDE_NOSPACE;
-}
-
-void wordfree(wordexp_t *we)
-{
 }

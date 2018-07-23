@@ -3,9 +3,9 @@
 #include "libc.h"
 
 __attribute__((__visibility__("hidden")))
-void *__tls_get_new(size_t *);
+void *__tls_get_new(tls_mod_off_t *);
 
-void *__tls_get_addr(size_t *v)
+void *__tls_get_addr(tls_mod_off_t *v)
 {
     /* current_lthread->tls + v[1] */
     struct lthread_sched *sch = lthread_get_sched();

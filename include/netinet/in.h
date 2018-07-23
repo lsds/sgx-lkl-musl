@@ -69,6 +69,8 @@ uint16_t htons(uint16_t);
 uint32_t ntohl(uint32_t);
 uint16_t ntohs(uint16_t);
 
+#define IPPORT_RESERVED 1024
+
 #define IPPROTO_IP       0
 #define IPPROTO_HOPOPTS  0
 #define IPPROTO_ICMP     1
@@ -198,6 +200,7 @@ uint16_t ntohs(uint16_t);
 #define IP_NODEFRAG        22
 #define IP_CHECKSUM        23
 #define IP_BIND_ADDRESS_NO_PORT 24
+#define IP_RECVFRAGSIZE    25
 #define IP_MULTICAST_IF    32
 #define IP_MULTICAST_TTL   33
 #define IP_MULTICAST_LOOP  34
@@ -359,6 +362,7 @@ struct ip6_mtuinfo {
 #define IPV6_RECVORIGDSTADDR    IPV6_ORIGDSTADDR
 #define IPV6_TRANSPARENT        75
 #define IPV6_UNICAST_IF         76
+#define IPV6_RECVFRAGSIZE       77
 
 #define IPV6_ADD_MEMBERSHIP     IPV6_JOIN_GROUP
 #define IPV6_DROP_MEMBERSHIP    IPV6_LEAVE_GROUP
@@ -384,6 +388,21 @@ struct ip6_mtuinfo {
 #define IPV6_RTHDR_STRICT       1
 
 #define IPV6_RTHDR_TYPE_0       0
+
+#define __UAPI_DEF_IN_ADDR      0
+#define __UAPI_DEF_IN_IPPROTO   0
+#define __UAPI_DEF_IN_PKTINFO   0
+#define __UAPI_DEF_IP_MREQ      0
+#define __UAPI_DEF_SOCKADDR_IN  0
+#define __UAPI_DEF_IN_CLASS     0
+#define __UAPI_DEF_IN6_ADDR     0
+#define __UAPI_DEF_IN6_ADDR_ALT 0
+#define __UAPI_DEF_SOCKADDR_IN6 0
+#define __UAPI_DEF_IPV6_MREQ    0
+#define __UAPI_DEF_IPPROTO_V6   0
+#define __UAPI_DEF_IPV6_OPTIONS 0
+#define __UAPI_DEF_IN6_PKTINFO  0
+#define __UAPI_DEF_IP6_MTUINFO  0
 
 #ifdef __cplusplus
 }

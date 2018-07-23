@@ -8,10 +8,7 @@ const char *__nl_langinfo_l(nl_item, locale_t);
 
 char *__asctime(const struct tm *restrict tm, char *restrict buf)
 {
-	if (tm == 0) {
-		snprintf(buf, 26, "Mon Jan 01 00:00:00 1900\n");
-	}
-	else if (snprintf(buf, 26, "%.3s %.3s%3d %.2d:%.2d:%.2d %d\n",
+	if (snprintf(buf, 26, "%.3s %.3s%3d %.2d:%.2d:%.2d %d\n",
 		__nl_langinfo_l(ABDAY_1+tm->tm_wday, C_LOCALE),
 		__nl_langinfo_l(ABMON_1+tm->tm_mon, C_LOCALE),
 		tm->tm_mday, tm->tm_hour,

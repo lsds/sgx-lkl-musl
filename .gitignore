@@ -3,19 +3,7 @@
 *.a
 *.so
 *.so.1
-*.pyc
 config.mak
 lib/musl-gcc.specs
 /obj/
 /lib/
-kernel/.tmp_versions/
-
-# vim tmp files
-*.sw?
-
-# PEDA GDB extension
-peda-session-*.txt
-.gdb_history
-
-
-.vscode

@@ -1,11 +1,10 @@
 #include "locale_impl.h"
-#include "lthread_int.h"
-#include <lthread.h>
+#include "pthread_impl.h"
 #include "libc.h"
 
 locale_t __uselocale(locale_t new)
 {
-        struct lthread *self = lthread_self();
+	pthread_t self = __pthread_self();
 	locale_t old = self->locale;
 	locale_t global = &libc.global_locale;
 

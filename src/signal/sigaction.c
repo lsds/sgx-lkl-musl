@@ -68,7 +68,6 @@ int __sigaction(int sig, const struct sigaction *restrict sa, struct sigaction *
 		errno = EINVAL;
 		return -1;
 	}
-
 	return __libc_sigaction(sig, sa, old);
 }
 

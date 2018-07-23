@@ -14,11 +14,15 @@
 #define pthread __pthread
 
 struct schedctx {
+	/* Part 1 -- these fields may be external or
+	 * internal (accessed via asm) ABI. Do not change. */
 	struct schedctx *self;
 	void **dtv, *unused1, *unused2;
 	uintptr_t sysinfo;
 	uintptr_t canary, canary2;
 	pid_t tid, pid;
+
+	/* Part 2 -- implementation details, non-ABI. */
 	int tsd_used, errno_val;
 	volatile int cancel, canceldisable, cancelasync;
 	int detached;
@@ -31,18 +35,26 @@ struct schedctx {
 	void *result;
 	struct __ptcb *cancelbuf;
 	void **tsd;
-	pthread_attr_t attr;
 	volatile int dead;
-        int unblock_cancel;
+	struct {
+		volatile void *volatile head;
+		long off;
+		volatile void *volatile pending;
+	} robust_list;
+	int unblock_cancel;
 	volatile int timer_id;
 	locale_t locale;
-	volatile int killlock[2];
-	volatile int exitlock[2];
+	volatile int killlock[1];
+	volatile int exitlock[1];
 	volatile int startlock[2];
 	unsigned long sigmask[_NSIG/8/sizeof(long)];
 	char *dlerror_buf;
 	int dlerror_flag;
 	void *stdio_locks;
+	size_t guard_size;
+
+	/* Part 3 -- the positions of these fields relative to
+	 * the end of the structure is external and internal ABI. */
 	uintptr_t canary_at_end;
 	void **dtv_copy;
         struct lthread_sched sched;
@@ -95,6 +107,10 @@ struct __timer {
 #define DTP_OFFSET 0
 #endif
 
+#ifndef tls_mod_off_t
+#define tls_mod_off_t size_t
+#endif
+
 #define SIGTIMER 32
 #define SIGCANCEL 33
 #define SIGSYNCCALL 34
@@ -125,10 +141,17 @@ int __timedwait_cp(volatile int *, int, clockid_t, const struct timespec *, int)
 void __wait(volatile int *, volatile int *, int, int);
 static inline void __wake(volatile void *addr, int cnt, int priv)
 {
-	if (priv) priv = 128;
+	if (priv) priv = FUTEX_PRIVATE;
 	if (cnt<0) cnt = INT_MAX;
 	__syscall(SYS_futex, (int*)addr, FUTEX_WAKE|priv, cnt, 0, 0, 0) != -ENOSYS ||
 	__syscall(SYS_futex, (int*)addr, FUTEX_WAKE, cnt, 0, 0, 0);
+}
+
+static inline void __futexwait(volatile void *addr, int val, int priv)
+{
+	if (priv) priv = FUTEX_PRIVATE;
+	__syscall(SYS_futex, addr, FUTEX_WAIT|priv, val, 0, 0, 0) != -ENOSYS ||
+	__syscall(SYS_futex, addr, FUTEX_WAIT, val, 0, 0, 0);
 }
 
 static inline struct lthread_sched*
@@ -168,7 +191,7 @@ void __restore_sigs(void *);
 void (* segv_handler) (int sig, siginfo_t *si, void *unused);
 
 #define DEFAULT_STACK_SIZE 81920
-#define DEFAULT_GUARD_SIZE PAGE_SIZE
+#define DEFAULT_GUARD_SIZE 4096
 
 #define __ATTRP_C11_THREAD ((void*)(uintptr_t)-1)
 

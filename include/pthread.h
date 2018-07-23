@@ -125,6 +125,12 @@ int pthread_rwlock_trywrlock(pthread_rwlock_t *);
 int pthread_rwlock_timedwrlock(pthread_rwlock_t *__restrict, const struct timespec *__restrict);
 int pthread_rwlock_unlock(pthread_rwlock_t *);
 
+int pthread_spin_init(pthread_spinlock_t *, int);
+int pthread_spin_destroy(pthread_spinlock_t *);
+int pthread_spin_lock(pthread_spinlock_t *);
+int pthread_spin_trylock(pthread_spinlock_t *);
+int pthread_spin_unlock(pthread_spinlock_t *);
+
 int pthread_barrier_init(pthread_barrier_t *__restrict, const pthread_barrierattr_t *__restrict, unsigned);
 int pthread_barrier_destroy(pthread_barrier_t *);
 int pthread_barrier_wait(pthread_barrier_t *);
@@ -209,6 +215,8 @@ int pthread_getaffinity_np(pthread_t, size_t, struct cpu_set_t *);
 int pthread_setaffinity_np(pthread_t, size_t, const struct cpu_set_t *);
 int pthread_getattr_np(pthread_t, pthread_attr_t *);
 int pthread_setname_np(pthread_t, const char *);
+int pthread_getattr_default_np(pthread_attr_t *);
+int pthread_setattr_default_np(const pthread_attr_t *);
 int pthread_tryjoin_np(pthread_t, void **);
 int pthread_timedjoin_np(pthread_t, void **, const struct timespec *);
 #endif

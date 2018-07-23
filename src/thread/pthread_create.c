@@ -20,6 +20,9 @@ weak_alias(dummy_0, __pthread_tsd_run_dtors);
 weak_alias(dummy_0, __do_orphaned_stdio_locks);
 weak_alias(dummy_0, __dl_thread_cleanup);
 
+size_t __default_stacksize = DEFAULT_STACK_SIZE;
+size_t __default_guardsize = DEFAULT_GUARD_SIZE;
+
 #if 0
 
 _Noreturn void __pthread_exit(void *result)
@@ -40,10 +43,10 @@ _Noreturn void __pthread_exit(void *result)
 
 	__pthread_tsd_run_dtors();
 
-	__lock(self->exitlock);
+	LOCK(self->exitlock);
 
 	/* Mark this thread dead before decrementing count */
-	__lock(self->killlock);
+	LOCK(self->killlock);
 	self->dead = 1;
 
 	/* Block all signals before decrementing the live thread count.
@@ -57,7 +60,7 @@ _Noreturn void __pthread_exit(void *result)
 	 * been blocked. This precludes observation of the thread id
 	 * as a live thread (with application code running in it) after
 	 * the thread was reported dead by ESRCH being returned. */
-	__unlock(self->killlock);
+	UNLOCK(self->killlock);
 
 	/* It's impossible to determine whether this is "the last thread"
 	 * until performing the atomic decrement, since multiple threads
@@ -119,12 +122,29 @@ _Noreturn void __pthread_exit(void *result)
 	for (;;) __syscall(SYS_exit, 0);
 }
 
+void __do_cleanup_push(struct __ptcb *cb)
+{
+	struct pthread *self = __pthread_self();
+	cb->__next = self->cancelbuf;
+	self->cancelbuf = cb;
+}
+
+void __do_cleanup_pop(struct __ptcb *cb)
+{
+	__pthread_self()->cancelbuf = cb->__next;
+}
+
 static int start(void *p)
 {
 	pthread_t self = p;
+	/* States for startlock:
+	 * 0 = no need for start sync
+	 * 1 = waiting for parent to do work
+	 * 2 = failure in parent, child must abort
+	 * 3 = success in parent, child must restore sigmask */
 	if (self->startlock[0]) {
 		__wait(self->startlock, 0, 1, 1);
-		if (self->startlock[0]) {
+		if (self->startlock[0] == 2) {
 			self->detached = 2;
 			pthread_exit(0);
 		}
@@ -177,7 +197,7 @@ int __pthread_create(pthread_t *restrict res, const pthread_attr_t *restrict att
 		| CLONE_THREAD | CLONE_SYSVSEM | CLONE_SETTLS
 		| CLONE_PARENT_SETTID | CLONE_CHILD_CLEARTID | CLONE_DETACHED;
 	int do_sched = 0;
-	pthread_attr_t attr = {0};
+	pthread_attr_t attr = { 0 };
 
 	if (!libc.can_do_threads) return ENOSYS;
 	self = __pthread_self();
@@ -195,11 +215,16 @@ int __pthread_create(pthread_t *restrict res, const pthread_attr_t *restrict att
 	if (attrp && !c11) attr = *attrp;
 
 	__acquire_ptc();
+	if (!attrp || c11) {
+		attr._a_stacksize = __default_stacksize;
+		attr._a_guardsize = __default_guardsize;
+	}
+
 	if (__block_new_threads) __wait(&__block_new_threads, 0, 1, 1);
 
 	if (attr._a_stackaddr) {
 		size_t need = libc.tls_size + __pthread_tsd_size;
-		size = attr._a_stacksize + DEFAULT_STACK_SIZE;
+		size = attr._a_stacksize;
 		stack = (void *)(attr._a_stackaddr & -16);
 		stack_limit = (void *)(attr._a_stackaddr - size);
 		/* Use application-provided stack for TLS only when
@@ -211,11 +236,11 @@ int __pthread_create(pthread_t *restrict res, const pthread_attr_t *restrict att
 			memset(stack, 0, need);
 		} else {
 			size = ROUND(need);
-			guard = 0;
 		}
+		guard = 0;
 	} else {
-		guard = ROUND(DEFAULT_GUARD_SIZE + attr._a_guardsize);
-		size = guard + ROUND(DEFAULT_STACK_SIZE + attr._a_stacksize
+		guard = ROUND(attr._a_guardsize);
+		size = guard + ROUND(attr._a_stacksize
 			+ libc.tls_size +  __pthread_tsd_size);
 	}
 
@@ -244,6 +269,7 @@ int __pthread_create(pthread_t *restrict res, const pthread_attr_t *restrict att
 	new->map_size = size;
 	new->stack = stack;
 	new->stack_size = stack - stack_limit;
+	new->guard_size = guard;
 	new->start = entry;
 	new->start_arg = arg;
 	new->self = new;
@@ -279,7 +305,7 @@ int __pthread_create(pthread_t *restrict res, const pthread_attr_t *restrict att
 	if (do_sched) {
 		ret = __syscall(SYS_sched_setscheduler, new->tid,
 			attr._a_policy, &attr._a_prio);
-		a_store(new->startlock, ret<0 ? 2 : 0);
+		a_store(new->startlock, ret<0 ? 2 : 3);
 		__wake(new->startlock, 1, 1);
 		if (ret < 0) return -ret;
 	}

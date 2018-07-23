@@ -69,20 +69,19 @@ const volatile char musl_compile_version[] = "sgx-lkl v1.0.0";
 
 void __init_libc(char **envp, char *pn, enclave_config_t *encl)
 {
-    size_t i, *auxv, aux[AUX_CNT] = { 0 };
-    __environ = envp;
+	size_t i, *auxv, aux[AUX_CNT] = { 0 };
+	__environ = envp;
+	for (i=0; envp[i]; i++);
+	libc.auxv = auxv = (void *)(envp+i+1);
+	for (i=0; auxv[i]; i+=2) if (auxv[i]<AUX_CNT) aux[auxv[i]] = auxv[i+1];
+	__hwcap = aux[AT_HWCAP];
+	__sysinfo = aux[AT_SYSINFO];
+	libc.page_size = aux[AT_PAGESZ];
 
-    for (i=0; envp[i]; i++);
-    libc.auxv = auxv = (void *)(envp+i+1);
-    for (i=0; auxv[i]; i+=2) if (auxv[i]<AUX_CNT) aux[auxv[i]] = auxv[i+1];
-    __hwcap = aux[AT_HWCAP];
-    __sysinfo = aux[AT_SYSINFO];
-    libc.page_size = aux[AT_PAGESZ];
-
-    if (pn) {
-        __progname = __progname_full = pn;
-        for (i=0; pn[i]; i++) if (pn[i]=='/') __progname = pn+i+1;
-    }
+	if (!pn) pn = (void*)aux[AT_EXECFN];
+	if (!pn) pn = "";
+	__progname = __progname_full = pn;
+	for (i=0; pn[i]; i++) if (pn[i]=='/') __progname = pn+i+1;
 
 #ifndef SGXLKL_HW
     if (encl->tlspresent) {
@@ -140,7 +139,7 @@ static void __libc_start_init(void)
     _init();
     uintptr_t a = (uintptr_t)&__init_array_start;
     for (; a<(uintptr_t)&__init_array_end; a+=sizeof(void(*)()))
-        (*(void (**)())a)();
+        (*(void (**)(void))a)();
 }
 
 static void exitmain(void)

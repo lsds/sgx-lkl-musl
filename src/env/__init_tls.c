@@ -14,17 +14,18 @@ struct pthread {};
 
 int __init_tp(void *p)
 {
-#ifndef SGXLKL_HW
+//#ifndef SGXLKL_HW
         struct schedctx *td = p;
-        td->self = td;
-        int r = __set_thread_area(TP_ADJ(p)); /* here we set a thread area */
-        if (r < 0) return -1;
-        if (!r) libc.can_do_threads = 1;
-        td->tid = __syscall(SYS_set_tid_address, &td->tid);
-        td->locale = &libc.global_locale;
-#else
-        libc.can_do_threads = 1;
-#endif
+	td->self = td;
+	int r = __set_thread_area(TP_ADJ(p));
+	if (r < 0) return -1;
+	if (!r) libc.can_do_threads = 1;
+	td->tid = __syscall(SYS_set_tid_address, &td->tid);
+	td->locale = &libc.global_locale;
+	td->robust_list.head = &td->robust_list.head;
+//#else
+//        libc.can_do_threads = 1;
+//#endif
         return 0;
 }
 
@@ -33,7 +34,6 @@ static struct builtin_tls {
 	struct schedctx pt;
 	void *space[16];
 } builtin_tls[1];
-
 #define MIN_TLS_ALIGN offsetof(struct builtin_tls, pt)
 
 static struct tls_module main_tls;
@@ -56,7 +56,7 @@ void *__copy_tls(unsigned char *mem)
 		memcpy(dtv[i], p->image, p->len);
 	}
 	dtv[0] = (void *)libc.tls_cnt;
-        td->dtv = td->dtv_copy = dtv;
+	td->dtv = td->dtv_copy = dtv;
 	return td;
 }
 
@@ -65,6 +65,7 @@ typedef Elf32_Phdr Phdr;
 #else
 typedef Elf64_Phdr Phdr;
 #endif
+
 
 int __copy_utls(uint8_t **mem, size_t *sz)
 {

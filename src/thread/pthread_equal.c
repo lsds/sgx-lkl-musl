@@ -1,4 +1,5 @@
 #include <pthread.h>
+#include <threads.h>
 #include "libc.h"
 
 static int __pthread_equal(pthread_t a, pthread_t b)
@@ -7,3 +8,4 @@ static int __pthread_equal(pthread_t a, pthread_t b)
 }
 
 weak_alias(__pthread_equal, pthread_equal);
+weak_alias(__pthread_equal, thrd_equal);
