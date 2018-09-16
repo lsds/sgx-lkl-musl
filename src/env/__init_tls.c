@@ -10,22 +10,28 @@
 #include "hostsyscalls.h"
 #include "lthread.h"
 
+static int spawned_ethreads = 1;
+
 struct pthread {};
 
 int __init_tp(void *p)
 {
-//#ifndef SGXLKL_HW
         struct schedctx *td = p;
 	td->self = td;
+#ifndef SGXLKL_HW
 	int r = __set_thread_area(TP_ADJ(p));
 	if (r < 0) return -1;
 	if (!r) libc.can_do_threads = 1;
-	td->tid = __syscall(SYS_set_tid_address, &td->tid);
+#endif
+	// Prevent collisions with lthread TIDs which are assigned to newly spawned
+	// lthreads incrementally, starting from one.
+	td->tid = INT_MAX - a_fetch_add(&spawned_ethreads, 1);
+//	td->tid = __syscall(SYS_set_tid_address, &td->tid);
 	td->locale = &libc.global_locale;
 	td->robust_list.head = &td->robust_list.head;
-//#else
-//        libc.can_do_threads = 1;
-//#endif
+
+//	libc.can_do_threads = 1;
+
         return 0;
 }
 
