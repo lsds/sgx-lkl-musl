@@ -20,14 +20,23 @@ int pthread_setaffinity_np(pthread_t td, size_t size, const cpu_set_t *set)
 	return 0;
 }
 
+static int do_getaffinity(pid_t tid, size_t size, cpu_set_t *set)
+{
+	CPU_ZERO(set);
+	long nproc = sysconf(_SC_NPROCESSORS_ONLN);
+	for (int i = 0; i < nproc; i++) {
+		CPU_SET(i, set);
+	}
+
+	return 0;
+}
+
 int sched_getaffinity(pid_t tid, size_t size, cpu_set_t *set)
 {
-        errno = ENOSYS;
-        return -1;
+	return __syscall_ret(do_getaffinity(tid, size, set));
 }
 
 int pthread_getaffinity_np(pthread_t td, size_t size, cpu_set_t *set)
 {
-        errno = ENOSYS;
-        return 1;
+	return -do_getaffinity(td->tid, size, set);
 }
