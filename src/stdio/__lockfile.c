@@ -1,9 +1,17 @@
 #include "stdio_impl.h"
 #include "pthread_impl.h"
+#include "limits.h"
 
 int __lockfile(FILE *f)
 {
-	int owner, tid = __pthread_self()->tid;
+	int owner, tid;
+	
+	if(__pthread_self()) {
+		tid  = __pthread_self()->tid;
+	} else {
+		tid = __scheduler_self()->tid;
+	}
+
 	if (f->lock == tid)
 		return 0;
 	while ((owner = a_cas(&f->lock, 0, tid)))
