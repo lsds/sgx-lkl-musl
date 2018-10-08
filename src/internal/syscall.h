@@ -228,7 +228,7 @@ static inline long __filter_syscall4(long n, long a1, long a2, long a3, long a4)
 		return (long)host_syscall_SYS_rt_sigtimedwait((sigset_t *)a1, (siginfo_t*)a2, (struct timespec*)a3, (unsigned long)a4);
 	}
 #ifndef SGXLKL_HW
-	else if (n == SYS_rt_sigaction) {
+	else if (n == SYS_rt_sigaction && a1 == SIGSEGV) {
 		return (long) host_syscall_SYS_rt_sigaction((int)a1, (struct sigaction *)a2, (struct sigaction *)a3, (unsigned long)a4);
 	}
 #endif
