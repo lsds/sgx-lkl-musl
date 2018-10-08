@@ -1832,6 +1832,13 @@ void __dls3(enclave_config_t *encl, void *tos)
 	prctl(PR_SET_MM, PR_SET_MM_EXE_FILE, fd, 0, 0);
 	close(fd);
 
+	// Set thread name
+	char * app_name = strrchr(app.name, '/');
+	if (app_name) {
+		app_name++;
+	}
+	lthread_set_funcname(lthread_self(), app_name ? app_name : app.name);
+
 	prepare_stack_and_jmp_to_exec((void *)aux[AT_ENTRY], argv, encl, tos);
 }
 
