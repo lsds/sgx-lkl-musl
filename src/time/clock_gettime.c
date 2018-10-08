@@ -113,17 +113,22 @@ int __clock_gettime(clockid_t clk, struct timespec *ts)
 	}
 #endif
 
-	if (libc.vvar_base && clk == CLOCK_REALTIME) {
+	if (libc.vvar_base && (clk == CLOCK_REALTIME || clk == CLOCK_MONOTONIC)) {
 		volatile struct vsyscall_gtod_data *ptr = (char *)libc.vvar_base + __vsyscall_gtod_data_offset;
 		unsigned seq;
 		uint64_t ns;
 
 //		do {
 			//seq = vdso_read_begin(ptr);
-			seq = ptr->seq;
+		seq = ptr->seq;
+		if (clk == CLOCK_REALTIME) {
 			ts->tv_sec = ptr->wall_time_sec;
 			ns = ptr->wall_time_snsec;
-			ns >>= ptr->shift;
+		} else if (clk == CLOCK_MONOTONIC) {
+			ts->tv_sec = ptr->monotonic_time_sec;
+			ns = ptr->monotonic_time_snsec;
+		}
+		ns >>= ptr->shift;
 //		} while (vdso_read_retry(ptr, seq));
 
 		ts->tv_sec += __iter_div_u64_rem(ns, 1000000000L, &ns);
