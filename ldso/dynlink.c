@@ -562,6 +562,11 @@ void __attribute__ ((noinline)) __gdb_hook_load_debug_symbols(struct dso *dso, v
 	__asm__ volatile ("" : : "m" (dso), "m" (symmem), "m" (symsz));
 }
 
+void __attribute__ ((noinline)) __gdb_hook_load_debug_symbols_from_file(struct dso *dso, char *libpath)
+{
+	__asm__ volatile ("" : : "m" (dso), "m" (libpath));
+}
+
 /* can't be static, we need to keep the symbol alive */
 int __gdb_load_debug_symbols_alive = 0;
 
@@ -570,6 +575,7 @@ static void __gdb_load_debug_symbols(int fd, struct dso *dso, Ehdr *eh)
 {
 	struct stat fdstat;
 	char *debugpath = NULL;
+	char *debugmount = NULL;
 	char *symmem = NULL;
 	int symfd = 0;
 	ssize_t symrem = 0;
@@ -705,7 +711,7 @@ static void __gdb_load_debug_symbols(int fd, struct dso *dso, Ehdr *eh)
 		*p = '/'; /* restore linkname to full directory path */
 	} else {
 		/* generate a speculative debug path */
-		debugpath = malloc(fdstat.st_size+1+14+6); /* len('/usr/lib/debug') == 14, len('.debug') == 6 */
+		debugpath = malloc(strlen(linkname)+1+14+6); /* len('/usr/lib/debug') == 14, len('.debug') == 6 */
 		if (debugpath == NULL) goto fail;
 
 		sprintf(debugpath, "/usr/lib/debug%s.debug", linkname);
@@ -718,23 +724,30 @@ static void __gdb_load_debug_symbols(int fd, struct dso *dso, Ehdr *eh)
 	}
 
 foundpath:
-	/* allocate memory for the symbols */
-	symmem = malloc(fdstat.st_size);
-	if (symmem == NULL) goto fail;
+	if ((debugmount = getenv("SGXLKL_DEBUGMOUNT")) != 0) {
+		size_t path_len = strlen(debugmount) + strlen(debugpath);
+		char debugmountpath[path_len + 1];
+		snprintf(debugmountpath, path_len + 1, "%s%s", debugmount, debugpath);
+		__gdb_hook_load_debug_symbols_from_file(dso, debugmountpath);
+	} else {
+		/* allocate memory for the symbols */
+		symmem = malloc(fdstat.st_size);
+		if (symmem == NULL) goto fail;
 
-	symfd = open(debugpath, O_RDONLY);
-	if (symfd <= 0) goto fail;
+		symfd = open(debugpath, O_RDONLY);
+		if (symfd <= 0) goto fail;
 
-	/* read symbols into symfd */
-	symrem = fdstat.st_size;
-	while (symrem > 0) {
-		ssize_t r = read(symfd, symmem + fdstat.st_size - symrem, symrem);
-		if (r <= 0) goto fail;
-		symrem -= r;
+		/* read symbols into symfd */
+		symrem = fdstat.st_size;
+		while (symrem > 0) {
+			ssize_t r = read(symfd, symmem + fdstat.st_size - symrem, symrem);
+			if (r <= 0) goto fail;
+			symrem -= r;
+		}
+
+		/* invoke gdb */
+		__gdb_hook_load_debug_symbols(dso, symmem, fdstat.st_size);
 	}
-
-	/* invoke gdb */
-	__gdb_hook_load_debug_symbols(dso, symmem, fdstat.st_size);
 
 fail:
 	if (sh_str != NULL) free(sh_str);
