@@ -11,10 +11,17 @@
 #define FUTEX_UNLOCK_PI		7
 #define FUTEX_TRYLOCK_PI	8
 #define FUTEX_WAIT_BITSET	9
+#define FUTEX_WAKE_BITSET	10
 
 #define FUTEX_PRIVATE 128
 
 #define FUTEX_CLOCK_REALTIME 256
+
+/*
+ * Bitset with all bits set for the FUTEX_xxx_BITSET OPs to request a
+ * match of any bit.
+ */
+#define FUTEX_BITSET_MATCH_ANY  0xffffffff
 
 int __futex(volatile int *, int, int, void *);
 
