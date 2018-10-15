@@ -5,7 +5,6 @@
 #include "libc.h"
 #include "atomic.h"
 #include "sgxlkl_debug.h"
-#include "hostqueues.h"
 
 #ifdef VDSO_CGT_SYM
 

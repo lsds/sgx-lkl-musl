@@ -4,7 +4,7 @@
 #include <poll.h>
 #include "atomic.h"
 #include "enclave_config.h"
-#include "enclave_mman.h"
+#include "enclave_mem.h"
 #include "libc.h"
 #include "lkl/asm/host_ops.h"
 #include "lkl/setup.h"
@@ -12,12 +12,17 @@
 #include "pthread_impl.h"
 #include "sgxlkl_debug.h"
 #include "syscall.h"
-#include "hostqueues.h"
-#include "hostsyscallclient.h"
+#include "hostcall_interface.h"
 
 #ifdef SGXLKL_HW
 #include <setjmp.h>
 #endif
+
+#define MAX_LTHREADS 8192 /* must be power of 2 */
+
+extern struct mpmcq __scheduler_queue;
+extern struct mpmcq *__syscall_queue;
+extern struct mpmcq *__return_queue;
 
 int sgxlkl_verbose = 1;
 
@@ -221,20 +226,24 @@ int __libc_init_enclave(int argc, char **argv, enclave_config_t *encl)
                 return 0;
         }
 #endif
-        char **envp = argv+argc+1;
-        enclave_mman_init(encl->heap, encl->heapsize/PAGESIZE);
+        char **envp = argv + argc + 1;
+        enclave_mman_init(encl->heap, encl->heapsize / PAGESIZE);
 
         init_sysconf(encl->sysconf_nproc_conf, encl->sysconf_nproc_onln);
 
-        __initschedqueue(5000); /* max lthreads */
-        __initsyscallqueues(&encl->syscallq, &encl->returnq);
+        newmpmcq(&__scheduler_queue, MAX_LTHREADS, 0);
+
+        __syscall_queue = &encl->syscallq;
+        __return_queue = &encl->returnq;
+
         hostsyscallclient_init(encl);
 
         __init_libc(envp, argv[0], encl);
         __init_tls();
+
          size_t futex_wake_spins = parseenv("SGXLKL_GETTIME_VDSO", 0, ULONG_MAX) == 1 ? 1 : 500;
          lthread_sched_global_init(parseenv("SGXLKL_ESPINS", 500, ULONG_MAX), parseenv("SGXLKL_ESLEEP", 16000, ULONG_MAX), futex_wake_spins);
-        /* You shall not pass control to the application */
+
         _lthread_sched_init(encl->stacksize);
 
 #ifdef SGXLKL_HW

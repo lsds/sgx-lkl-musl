@@ -8,7 +8,7 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include "syscall_arch.h"
-#include "hostsyscalls.h"
+#include "hostcalls.h"
 #include "sgxlkl_debug.h"
 
 #ifndef SYSCALL_RLIM_INFINITY

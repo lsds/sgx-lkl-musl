@@ -2,7 +2,6 @@
 #include <lthread.h>
 #include "lthread_int.h"
 #include "syscall.h"
-#include "hostqueues.h"
 
 int sched_yield()
 {
