@@ -2,6 +2,7 @@
 #include <elf.h>
 #include <fcntl.h>
 #include <poll.h>
+#include <time.h>
 #include "atomic.h"
 #include "enclave_config.h"
 #include "enclave_mem.h"
@@ -18,6 +19,7 @@
 #include <setjmp.h>
 #endif
 
+#define AUX_CNT 38
 #define MAX_LTHREADS 8192 /* must be power of 2 */
 
 extern struct mpmcq __scheduler_queue;
@@ -35,7 +37,6 @@ weak_alias(dummy, _preinit);
 
 __attribute__((__weak__, __visibility__("hidden")))
 extern void (*const __preinit_array_start)(void), (*const __preinit_array_end)(void);
-
 __attribute__((__weak__, __visibility__("hidden")))
 extern void (*const __init_array_start)(void), (*const __init_array_end)(void);
 
@@ -55,22 +56,15 @@ void reloc_all();
 void decode_dyn();
 #endif
 
-#define AUX_CNT 38
-
 // Enclave config saved in startmain() just for exitmain()
 static enclave_config_t *encl_config = NULL;
+
+struct timespec sgxlkl_app_starttime;
 
 extern int get_env_bool(const char *name, int def);
 struct lkl_host_operations lkl_host_ops;
 struct lkl_host_operations sgxlkl_host_ops;
 
-// Used as a tag in the binary to prevent executable compiled with debug options
-// from being used in benchmarks
-#ifdef DEBUG
-const volatile char musl_compile_version[] = "sgx-lkl v1.0.0 DEBUG";
-#else
-const volatile char musl_compile_version[] = "sgx-lkl v1.0.0";
-#endif
 
 void __init_libc(char **envp, char *pn, enclave_config_t *encl)
 {
@@ -277,6 +271,9 @@ int __libc_start_main(int (*main)(int,char **,char **), int argc, char **argv)
 
     SGXLKL_VERBOSE("Calling main()\n");
 
+	if (parseenv("SGXLKL_PRINT_APP_RUNTIME", 0, 1)) {
+		clock_gettime(CLOCK_MONOTONIC, &sgxlkl_app_starttime);
+	}
 	/* Pass control to the application */
 	exit(main(argc, argv, envp));
 	return 0;
