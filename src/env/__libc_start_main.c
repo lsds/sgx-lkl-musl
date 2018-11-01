@@ -4,16 +4,18 @@
 #include <poll.h>
 #include <time.h>
 #include "atomic.h"
-#include "enclave_config.h"
-#include "enclave_mem.h"
 #include "libc.h"
 #include "lkl/asm/host_ops.h"
 #include "lkl/setup.h"
+
+#include "enclave_config.h"
+#include "enclave_mem.h"
+#include "hostcall_interface.h"
 #include "lthread.h"
 #include "pthread_impl.h"
 #include "sgxlkl_debug.h"
+#include "sgxlkl_util.h"
 #include "syscall.h"
-#include "hostcall_interface.h"
 
 #ifdef SGXLKL_HW
 #include <setjmp.h>
@@ -61,7 +63,6 @@ static enclave_config_t *encl_config = NULL;
 
 struct timespec sgxlkl_app_starttime;
 
-extern int get_env_bool(const char *name, int def);
 struct lkl_host_operations lkl_host_ops;
 struct lkl_host_operations sgxlkl_host_ops;
 
@@ -109,22 +110,6 @@ void __init_libc(char **envp, char *pn, enclave_config_t *encl)
 
 }
 
-static size_t parseenv(const char *var, size_t def, size_t max)
-{
-        size_t r = def;
-        char *val;
-        if ((val = getenv(var))) {
-                r = strtoul(val, NULL, 10);
-                if (r == ULONG_MAX) {
-                        r = def;
-                }
-                if (r > max) {
-                        r = max;
-                }
-        }
-        return r;
-}
-
 static void __libc_start_preinit(void)
 {
     _preinit();
@@ -170,7 +155,7 @@ static int startmain(enclave_config_t *encl) {
 
         // Disable kernel outputs for normal runs
         //TODO: keep in a separate buffer instead of discarding
-        if (!get_env_bool("SGXLKL_VERBOSE", 0)) {
+        if (!getenv_bool("SGXLKL_VERBOSE", 0)) {
             sgxlkl_verbose = 0;
             sgxlkl_host_ops.print = NULL;
             lkl_host_ops.print = NULL;
@@ -180,7 +165,7 @@ static int startmain(enclave_config_t *encl) {
         size_t i;
         if (getenv("SGXLKL_VERBOSE")) {
                 for (i = 0; i < sizeof(ps)/sizeof(ps[0]); i++) {
-                    SGXLKL_VERBOSE("%s: %zu\n", ps[i].name, parseenv(ps[i].name, ps[i].def, ps[i].max));
+                    SGXLKL_VERBOSE("%s: %lu\n", ps[i].name, getenv_uint64(ps[i].name, ps[i].def, ps[i].max));
                 }
                 SGXLKL_VERBOSE("__libc_get_version: %s\n", __libc_get_version());
                 SGXLKL_VERBOSE("Maximum enclave threads (TCS): %d\n", get_enclave_parms()->tcsn);
@@ -235,8 +220,8 @@ int __libc_init_enclave(int argc, char **argv, enclave_config_t *encl)
         __init_libc(envp, argv[0], encl);
         __init_tls();
 
-         size_t futex_wake_spins = parseenv("SGXLKL_GETTIME_VDSO", 0, ULONG_MAX) == 1 ? 1 : 500;
-         lthread_sched_global_init(parseenv("SGXLKL_ESPINS", 500, ULONG_MAX), parseenv("SGXLKL_ESLEEP", 16000, ULONG_MAX), futex_wake_spins);
+         size_t futex_wake_spins = getenv_uint64("SGXLKL_GETTIME_VDSO", 0, ULONG_MAX) == 1 ? 1 : 500;
+         lthread_sched_global_init(getenv_uint64("SGXLKL_ESPINS", 500, ULONG_MAX), getenv_uint64("SGXLKL_ESLEEP", 16000, ULONG_MAX), futex_wake_spins);
 
         _lthread_sched_init(encl->stacksize);
 
@@ -271,7 +256,7 @@ int __libc_start_main(int (*main)(int,char **,char **), int argc, char **argv)
 
     SGXLKL_VERBOSE("Calling main()\n");
 
-	if (parseenv("SGXLKL_PRINT_APP_RUNTIME", 0, 1)) {
+	if (getenv_bool("SGXLKL_PRINT_APP_RUNTIME", 0)) {
 		clock_gettime(CLOCK_MONOTONIC, &sgxlkl_app_starttime);
 	}
 	/* Pass control to the application */
