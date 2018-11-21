@@ -4,6 +4,7 @@
 #include <sys/mman.h>
 #include "libc.h"
 #include "syscall.h"
+#include "enclave_mem.h"
 
 /* This function returns true if the interval [old,new]
  * intersects the 'len'-sized interval below &libc.auxv
@@ -26,8 +27,6 @@ static int traverses_stack_p(uintptr_t old, uintptr_t new)
 
 	return 0;
 }
-
-void *__mmap(void *, size_t, int, int, int, off_t);
 
 /* Expand the heap in-place if brk can be used, or otherwise via mmap,
  * using an exponential lower bound on growth by mmap to make
@@ -66,8 +65,8 @@ void *__expand_heap(size_t *pn)
 
 	size_t min = (size_t)PAGE_SIZE << mmap_step/2;
 	if (n < min) n = min;
-	void *area = __mmap(0, n, PROT_READ|PROT_WRITE,
-		MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
+	void *area = enclave_mmap(0, n, 0);
+	mprotect(area, n, PROT_READ|PROT_WRITE);
 	if (area == MAP_FAILED) return 0;
 	*pn = n;
 	mmap_step++;

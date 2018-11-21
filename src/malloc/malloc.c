@@ -8,6 +8,7 @@
 #include "libc.h"
 #include "atomic.h"
 #include "pthread_impl.h"
+#include "enclave_mem.h"
 
 #if defined(__GNUC__) && defined(__PIC__)
 #define inline inline __attribute__((always_inline))
@@ -326,8 +327,8 @@ void *malloc(size_t n)
 
 	if (n > MMAP_THRESHOLD) {
 		size_t len = n + OVERHEAD + PAGE_SIZE - 1 & -PAGE_SIZE;
-		char *base = __mmap(0, len, PROT_READ|PROT_WRITE,
-			MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
+		char *base = enclave_mmap(0, len, 0);
+		mprotect(base, len, PROT_READ|PROT_WRITE);
 		if (base == (void *)-1) return 0;
 		c = (void *)(base + SIZE_ALIGN - OVERHEAD);
 		c->csize = len - (SIZE_ALIGN - OVERHEAD);
@@ -369,7 +370,7 @@ void *malloc(size_t n)
 void *__malloc0(size_t n)
 {
 	void *p = malloc(n);
-	if (p && !IS_MMAPPED(MEM_TO_CHUNK(p))) {
+	if (p) {
 		size_t *z;
 		n = (n + sizeof *z - 1)/sizeof *z;
 		for (z=p; n; n--, z++) if (*z) *z=0;
