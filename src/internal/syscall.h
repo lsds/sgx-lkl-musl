@@ -144,6 +144,12 @@ static inline long __filter_syscall2(long n, long a1, long a2) {
 	} else if (n == SYS_nanosleep) {
 		return (long)host_syscall_SYS_nanosleep((const struct timespec*)a1, (struct timespec*)a2);
 	} else if (n == SYS_clock_gettime) {
+		// Force call to go through libc clock_gettime implementation to make use of the vDSO path.
+		clockid_t clk = (clockid_t) a1;
+		struct timespec *ts = (struct timespec *) a2;
+		if (libc.vvar_base && (clk == CLOCK_REALTIME || clk == CLOCK_MONOTONIC)) {
+			return clock_gettime(clk, ts);
+		}
 		return (long)host_syscall_SYS_clock_gettime((clockid_t)a1, (struct timespec*)a2);
 	} else if (n == SYS_clock_getres) {
 		return (long)host_syscall_SYS_clock_getres((clockid_t)a1, (struct timespec*)a2);
