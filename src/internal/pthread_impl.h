@@ -11,6 +11,10 @@
 #include "atomic.h"
 #include "futex.h"
 
+#ifdef SGXLKL_HW
+#include "enclave_config.h"
+#endif
+
 #define pthread __pthread
 
 struct schedctx {
@@ -53,6 +57,10 @@ struct schedctx {
 	void *stdio_locks;
 	size_t guard_size;
 
+#ifdef SGXLKL_HW
+	enclave_parms_t *enclave_parms;
+#endif /* SGXLKL_HW */
+
 	/* Part 3 -- the positions of these fields relative to
 	 * the end of the structure is external and internal ABI. */
 	uintptr_t canary_at_end;
@@ -63,6 +71,31 @@ struct schedctx {
 struct __timer {
 	int timerid;
 	pthread_t thread;
+};
+
+/* Thread Control Block (TCB) for lthreads */
+struct lthread_tcb_base {
+    struct schedctx *schedtcx;
+    char _pad_0[32];
+    // SGX-LKL does not have full stack smashing protection (SSP) support right
+    // now. In particular, we do not generate a random stack guard for every
+    // new thread. However, when aplications are compiled with stack protection
+    // enabled, GCC makes certain assumptions about the Thread Control Block
+    // (TCB) layout. Among other things, it expects a read-only stack
+    // guard/canary value at an offset 0x28 (40 bytes) from the FS segment
+    // base/start of the TCB (see schedctx struct above).
+    uint64_t stack_guard_dummy; // Equivalent to schedctx->canary (see above).
+                                // canary2 is only used on the x32 arch, so we
+                                // ignore it here.
+};
+
+/* Thread Control Block (TCB) for ethreads/the scheduler (schedctx) */
+struct sched_tcb_base {
+    struct schedctx *schedtcx;
+    void *tcs;
+    void *enclave_parms;
+    char _pad_0[16];
+    uint64_t stack_guard_dummy; // See struct lthread_tcb_base comment
 };
 
 #define __SU (sizeof(size_t)/sizeof(int))

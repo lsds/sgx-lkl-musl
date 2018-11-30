@@ -97,9 +97,10 @@ struct symdef {
 	struct dso *dso;
 };
 
-int __init_tp(void *);
 void __init_libc(char **, char *);
-void *__copy_tls(unsigned char *);
+int __init_utp(void *);
+void __init_utls(struct tls_module *);
+void *__copy_utls(struct lthread *, unsigned char *, size_t);
 
 __attribute__((__visibility__("hidden")))
 const char *__libc_get_version(void);
@@ -1515,9 +1516,6 @@ static void dl_debug_state(void)
 
 weak_alias(dl_debug_state, _dl_debug_state);
 
-void __init_tls(size_t *auxv)
-{
-}
 
 __attribute__((__visibility__("hidden")))
 void *__tls_get_new(tls_mod_off_t *v)
@@ -1567,12 +1565,19 @@ void *__tls_get_new(tls_mod_off_t *v)
 
 static void update_tls_size()
 {
+#ifdef SGXLKL_HW
+	static int fsgsbase_warn = 0;
+	if (!libc.user_tls_enabled && tls_cnt > 0 && !fsgsbase_warn) {
+		fprintf(stderr, "[    SGX-LKL   ] Warning: The application requires thread-local storage (TLS), but the current system configuration does not allow SGX-LKL to provide full TLS support in hardware mode. See sgx-lkl-run --help-tls for more information.\n");
+		fsgsbase_warn = 1;
+	}
+#endif
 	libc.tls_cnt = tls_cnt;
 	libc.tls_align = tls_align;
 	libc.tls_size = ALIGN(
 		(1+tls_cnt) * sizeof(void *) +
 		tls_offset +
-		sizeof(struct schedctx) + /* was: pthread */
+		sizeof(struct lthread_tcb_base) +
 		tls_align * 2,
 	tls_align);
 }
@@ -1716,6 +1721,15 @@ void __dls3(enclave_config_t *encl, void *tos)
 	auxv = libc.auxv;
 	decode_vec(auxv, aux, AUX_CNT);
 
+//	/* Setup early thread pointer in builtin_tls for ldso/libc itself to
+//	 * use during dynamic linking. If possible it will also serve as the
+//	 * thread pointer at runtime. */
+//	libc.tls_size = sizeof builtin_tls;
+//	libc.tls_align = tls_align;
+//	if (__init_utp(__copy_tls((void *)builtin_tls)) < 0) {
+//		a_crash();
+//	}
+
 	/* Only trust user/env if kernel says we're not suid/sgid */
 	if (!libc.secure) {
 		env_path = getenv("LD_LIBRARY_PATH");
@@ -1794,31 +1808,32 @@ void __dls3(enclave_config_t *encl, void *tos)
 	reloc_all(app.next);
 	reloc_all(&app);
 
-	do_init_fini(&app);
-#if 0
+	__init_utls(&app.tls);
+
 	update_tls_size();
-	if (libc.tls_size > sizeof builtin_tls || tls_align > MIN_TLS_ALIGN) {
-		void *initial_tls = calloc(libc.tls_size, 1);
-		if (!initial_tls) {
-			dprintf(2, "%s: Error getting %zu bytes thread-local storage: %m\n",
-				argv[0], libc.tls_size);
-			_exit(127);
-		}
-		if (__init_tp(__copy_tls(initial_tls)) < 0) {
-			a_crash();
-		}
-	} else {
-		size_t tmp_tls_size = libc.tls_size;
-		pthread_t self = __pthread_self();
-		/* Temporarily set the tls size to the full size of
-		 * builtin_tls so that __copy_tls will use the same layout
-		 * as it did for before. Then check, just to be safe. */
-		libc.tls_size = sizeof builtin_tls;
-		if (__copy_tls((void*)builtin_tls) != self) a_crash();
-		libc.tls_size = tmp_tls_size;
+	void *initial_tls = calloc(libc.tls_size, 1);
+	if (!initial_tls) {
+		dprintf(2, "%s: Error getting %zu bytes thread-local storage: %m\n",
+			argv[0], libc.tls_size);
+		_exit(127);
 	}
+
+	if (__init_utp(__copy_utls(lthread_self(), initial_tls, libc.tls_size)) < 0) {
+		a_crash();
+	}
+//	else {
+//		size_t tmp_tls_size = libc.tls_size;
+//		pthread_t self = __pthread_self();
+//		/* Temporarily set the tls size to the full size of
+//		 * builtin_tls so that __copy_tls will use the same layout
+//		 * as it did for before. Then check, just to be safe. */
+//		libc.tls_size = sizeof builtin_tls;
+//		if (__copy_tls((void*)builtin_tls) != self) a_crash();
+//		libc.tls_size = tmp_tls_size;
+//	}
 	static_tls_cnt = tls_cnt;
-#endif
+
+	do_init_fini(&app);
 
 	if (ldso_fail) _exit(127);
 	if (ldd_mode) _exit(0);
@@ -1837,9 +1852,6 @@ void __dls3(enclave_config_t *encl, void *tos)
 
 	if (replace_argv0) argv[0] = replace_argv0;
 
-	errno = 0;
-
-
 	// Adjust /proc/self/exe
 	fd = open(app.name, O_RDONLY);
 	prctl(PR_SET_MM, PR_SET_MM_EXE_FILE, fd, 0, 0);
@@ -1847,10 +1859,10 @@ void __dls3(enclave_config_t *encl, void *tos)
 
 	// Set thread name
 	char * app_name = strrchr(app.name, '/');
-	if (app_name) {
-		app_name++;
-	}
+	if (app_name) app_name++;
 	lthread_set_funcname(lthread_self(), app_name ? app_name : app.name);
+
+	errno = 0;
 
 	prepare_stack_and_jmp_to_exec((void *)aux[AT_ENTRY], argv, encl, tos);
 }

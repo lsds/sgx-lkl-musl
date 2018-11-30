@@ -21,6 +21,7 @@ struct __libc {
 	int can_do_threads;
 	int threaded;
 	int secure;
+	int user_tls_enabled;
 	void *vvar_base;
 	volatile int threads_minus_1;
 	size_t *auxv;

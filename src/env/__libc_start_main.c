@@ -83,13 +83,6 @@ void __init_libc(char **envp, char *pn, enclave_config_t *encl)
 	__progname = __progname_full = pn;
 	for (i=0; pn[i]; i++) if (pn[i]=='/') __progname = pn+i+1;
 
-#ifndef SGXLKL_HW
-    if (encl->tlspresent) {
-        __init_utls(encl->tlsbase, &encl->tlsphdr);
-    }
-#else
-    __init_utls(0, 0);
-#endif
     __init_ssp((void *)aux[AT_RANDOM]);
 
 
@@ -195,6 +188,7 @@ int __libc_init_enclave(int argc, char **argv, enclave_config_t *encl)
 {
         struct lthread *lt;
         libc.vvar_base = encl->vvar;
+        libc.user_tls_enabled = encl->mode == SGXLKL_HW_MODE ? encl->fsgsbase : 1;
 #ifndef SGXLKL_HW
         int c;
         while ((c = a_cas(&__libc_state, 0, 1)) == 1) {a_spin();}
@@ -221,7 +215,9 @@ int __libc_init_enclave(int argc, char **argv, enclave_config_t *encl)
         __init_tls();
 
          size_t futex_wake_spins = getenv_uint64("SGXLKL_GETTIME_VDSO", 0, ULONG_MAX) == 1 ? 1 : 500;
-         lthread_sched_global_init(getenv_uint64("SGXLKL_ESPINS", 500, ULONG_MAX), getenv_uint64("SGXLKL_ESLEEP", 16000, ULONG_MAX), futex_wake_spins);
+         size_t espins = getenv_uint64("SGXLKL_ESPINS", 500, ULONG_MAX);
+         size_t esleep = getenv_uint64("SGXLKL_ESLEEP", 16000, ULONG_MAX);
+         lthread_sched_global_init(espins, esleep, futex_wake_spins);
 
         _lthread_sched_init(encl->stacksize);
 
@@ -278,6 +274,7 @@ int __sgx_lkl_start_main(enclave_config_t *encl)
 }
 
 void __sgx_lkl_entry(uint64_t call_id, void* arg) {
+    enclave_config_t* encl = (enclave_config_t*)arg;
     switch (call_id) {
         case SGXLKL_ENTER_THREAD_CREATE: {
             int c;
@@ -288,7 +285,6 @@ void __sgx_lkl_entry(uint64_t call_id, void* arg) {
                 lthread_run();
                 return;
             }
-            enclave_config_t* encl = (enclave_config_t*)arg;
             __sgx_lkl_start_main(encl);
             break;
         }
