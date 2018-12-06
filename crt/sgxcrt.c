@@ -15,10 +15,11 @@ __asm__(
 ".globl entry\n"
 ".type entry, @function\n"
 "entry:\n"
-/* on entry, rax - tcs.cssa, rbx - TCS addr, rcx - address of instruction following eenter */
-/* fs:0 - offset of tls from enclave base
+/* on entry, rax - tcs.cssa, rbx - TCS addr, rcx - address of instruction following eenter
+ * fs:0 - self pointer
  * fs:8 - offset of tcs from enclave base / 0x1 if initialized
  * fs:16 - offset of enclave_parms from enclave base
+ * fs:48 - offset of tls from enclave base
  */
 
 //TODO: we need to verify if the ecall is a legit one
@@ -35,8 +36,10 @@ __asm__(
 "   je _thread_initialized\n"
 /* enclave base address in %rbx */
 "   subq %fs:8,%rbx\n"
-/* address of tls */
+/* store self pointer at %fs:0 */
 "   addq %rbx,%fs:0\n"
+/* address of tls */
+"   addq %rbx,%fs:48\n"
 /* address of enclave parms structure */
 "   addq %rbx,%fs:16\n"
 "   addq %rbx,%rax\n"
@@ -138,6 +141,17 @@ int __libc_init_enclave(int argc, char **argv, enclave_config_t* encl);
 
 void __sgx_init_enclave(enclave_config_t* encl)
 {
+    /* Copy pointer to host OS-created pthread struct
+     * from fs:0 t fs:48 which will serve as a placeholder
+     * until we have initialised the scheduling context
+     * (see init_tls in src/env/__init_tls.c).
+     *
+     * fs:0 will be a (self) pointer to the beginning of the
+     * thread control block, fs:48 points to the scheduling
+     * context */
+    __asm__ volatile ( "movq %%fs:0,%%rax;\n\t"
+                       "movq %%rax,%%fs:48;\n\t"
+                      ::: "%rax" );
     __libc_init_enclave(encl->argc, encl->argv, encl);
 }
  

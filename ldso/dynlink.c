@@ -98,7 +98,7 @@ struct symdef {
 };
 
 void __init_libc(char **, char *);
-int __init_utp(void *);
+int __init_utp(void *, int);
 void __init_utls(struct tls_module *);
 void *__copy_utls(struct lthread *, unsigned char *, size_t);
 
@@ -1726,7 +1726,7 @@ void __dls3(enclave_config_t *encl, void *tos)
 //	 * thread pointer at runtime. */
 //	libc.tls_size = sizeof builtin_tls;
 //	libc.tls_align = tls_align;
-//	if (__init_utp(__copy_tls((void *)builtin_tls)) < 0) {
+//	if (__init_utp(__copy_tls((void *)builtin_tls), 1) < 0) {
 //		a_crash();
 //	}
 
@@ -1818,7 +1818,10 @@ void __dls3(enclave_config_t *encl, void *tos)
 		_exit(127);
 	}
 
-	if (__init_utp(__copy_utls(lthread_self(), initial_tls, libc.tls_size)) < 0) {
+        struct lthread *lt = lthread_self();
+        lt->itls = initial_tls;
+        lt->itlssz = libc.tls_size;
+	if (__init_utp(__copy_utls(lt, lt->itls, lt->itlssz), 1) < 0) {
 		a_crash();
 	}
 //	else {

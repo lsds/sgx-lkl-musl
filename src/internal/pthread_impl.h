@@ -75,7 +75,7 @@ struct __timer {
 
 /* Thread Control Block (TCB) for lthreads */
 struct lthread_tcb_base {
-    struct schedctx *schedtcx;
+    void *self;
     char _pad_0[32];
     // SGX-LKL does not have full stack smashing protection (SSP) support right
     // now. In particular, we do not generate a random stack guard for every
@@ -87,15 +87,17 @@ struct lthread_tcb_base {
     uint64_t stack_guard_dummy; // Equivalent to schedctx->canary (see above).
                                 // canary2 is only used on the x32 arch, so we
                                 // ignore it here.
+    struct schedctx *schedctx;
 };
 
 /* Thread Control Block (TCB) for ethreads/the scheduler (schedctx) */
 struct sched_tcb_base {
-    struct schedctx *schedtcx;
+    void *self;
     void *tcs;
     void *enclave_parms;
     char _pad_0[16];
     uint64_t stack_guard_dummy; // See struct lthread_tcb_base comment
+    struct schedctx *schedctx;
 };
 
 #define __SU (sizeof(size_t)/sizeof(int))

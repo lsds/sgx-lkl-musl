@@ -16,20 +16,22 @@ struct pthread {};
 
 int __init_tp(void *p)
 {
-	struct schedctx *td = p;
-	td->self = td;
-
 #ifdef SGXLKL_HW
+	struct schedctx *td = p;
 	// Store pointer to enclave_parms in scheduling context to make it accessible
-    // from an lthread context
+	// from an lthread context
 	enclave_parms_t* parms;
 	__asm("movq %%fs:16,%0\n" : "=r"(parms) : : );
 	td->enclave_parms = parms;
 #else
 	int r = __set_thread_area(TP_ADJ(p));
 	if (r < 0) return -1;
+	struct sched_tcb_base *tcb = (struct sched_tcb_base *)p;
+	tcb->self = tcb;
+	struct schedctx *td = (struct schedctx *) ((char *)tcb + sizeof(struct sched_tcb_base));
+	tcb->schedctx = td;
 #endif /* SGXLKL_HW */
-
+	td->self = td;
 	// Prevent collisions with lthread TIDs which are assigned to newly spawned
 	// lthreads incrementally, starting from one.
 	td->tid = INT_MAX - a_fetch_add(&spawned_ethreads, 1);
@@ -39,17 +41,18 @@ int __init_tp(void *p)
 	return 0;
 }
 
-int __init_utp(void **p)
+int __init_utp(void *p, int set_tp)
 {
-	struct schedctx **tp = (struct schedctx **) p;
-	*tp = __scheduler_self();
-	if (libc.user_tls_enabled) {
+	struct lthread_tcb_base *tcb = (struct lthread_tcb_base *)p;
+	tcb->self = p;
+	tcb->schedctx = __scheduler_self();
+	if (libc.user_tls_enabled && set_tp) {
 #ifdef SGXLKL_HW
-		__asm__ volatile ( "wrfsbase %0" :: "r" (tp) );
+		__asm__ volatile ( "wrfsbase %0" :: "r" (p) );
 #else
-		int r = __set_thread_area(TP_ADJ(tp));
+		int r = __set_thread_area(TP_ADJ(p));
 		if(r < 0) {
-			fprintf(stderr, "[SGX-LKL] Error: Could not set thread area %p: %s\n", tp, strerror(errno));
+			fprintf(stderr, "[SGX-LKL] Error: Could not set thread area %p: %s\n", p, strerror(errno));
 		}
 #endif
 	}
@@ -83,7 +86,7 @@ void *__copy_utls(struct lthread *lt, unsigned char *mem, size_t sz)
 	}
 	dtv[0] = (void *)libc.tls_cnt;
 	lt->dtv = lt->dtv_copy = dtv;
-	return mem;
+	return (void *) mem;
 }
 
 /* Initialisation of user-level thread TLS image */
@@ -107,13 +110,13 @@ void __init_utls(struct tls_module *apptls)
 }
 
 /* Initialisation of ethread/scheduler TLS */
-static void static_init_tls(int lthread_tls_enabled)
+static void static_init_tls()
 {
 	void *mem;
 #ifdef SGXLKL_HW
 	mem = __scheduler_self();
 #else
-	size_t sched_tls_size = sizeof(struct schedctx);
+	size_t sched_tls_size = sizeof(struct sched_tcb_base) + sizeof(struct schedctx);
 	mem = (void *)__syscall(
 		SYS_mmap,
 		0, sched_tls_size, PROT_READ|PROT_WRITE,
