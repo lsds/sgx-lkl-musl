@@ -515,15 +515,45 @@ static void reclaim_gaps(struct dso *dso)
 
 static void *mmap_fixed(void *p, size_t n, int prot, int flags, int fd, off_t off)
 {
-	static int no_map_fixed;
 	char *q;
-	no_map_fixed = 1; // XXX(lukegb): investigate why mmapping isn't working
-	if (!no_map_fixed) {
-		q = mmap(p, n, prot, flags|MAP_FIXED, fd, off);
-		if (!DL_NOMMU_SUPPORT || q != MAP_FAILED || errno != EINVAL)
+
+#if !defined(SGXLKL_HW) && defined(DEBUG)
+	// If SGXLKL_DEBUGMOUNT is specified do a file-backed mapping from the
+	// debug moutn over the already allocated region.  This allows perf to
+	// resolve symbols of applications and shared libraries loaded from the
+	// root disk image.
+	char *debugmount, *fdpath;
+	debugmount = getenv("SGXLKL_DEBUGMOUNT");
+	if (fd != -1 && debugmount != NULL) {
+		char debugpath[PATH_MAX];
+		strncpy(debugpath, debugmount, PATH_MAX);
+		debugpath[strlen(debugpath)] = '/';
+
+		char procfdpath[24];
+		snprintf(procfdpath, sizeof(procfdpath), "/proc/self/fd/%d", fd);
+		char *filepath = &debugpath[strlen(debugpath)];
+		if (readlink(procfdpath, filepath, (debugpath + PATH_MAX - filepath)) != -1) {
+			int debugfd = host_syscall_SYS_open(debugpath, O_RDONLY, 0);
+			if (debugfd != -1) {
+				q = host_syscall_SYS_mmap(p, n, prot, flags|MAP_FIXED, debugfd, off);
+				host_syscall_SYS_close(debugfd);
+				if (!DL_NOMMU_SUPPORT || q != MAP_FAILED || errno != EINVAL)
+					return q;
+				fprintf(stderr, "[SGX-LKL] Failed to map debug mount file %s: %s\n", debugpath, strerror(errno));
+			} else {
+				fprintf(stderr, "[SGX-LKL] Failed to open debug mount file %s: %s\n", debugpath, strerror(errno));
+			}
+		} else {
+			fprintf(stderr, "[SGX-LKL] Failed to determine debug mount file path: %s\n", strerror(errno));
+		}
+	} else if (debugmount != NULL && flags & MAP_ANONYMOUS) {
+		q = host_syscall_SYS_mmap(p, n, prot, flags|MAP_FIXED, -1, 0);
+		if (q != MAP_FAILED)
 			return q;
-		no_map_fixed = 1;
+		fprintf(stderr, "[SGX-LKL] Failed to map anonymous host memory: %s\n", strerror(errno));
 	}
+#endif /* !SGXLKL_HW && DEBUG */
+
 	/* Fallbacks for MAP_FIXED failure on NOMMU kernels. */
 	if (flags & MAP_ANONYMOUS) {
 		memset(p, 0, n);
