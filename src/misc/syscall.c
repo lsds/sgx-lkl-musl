@@ -37,7 +37,7 @@ console.log(o);
 
 static const short syscall_remap_len = 547;
 static const short syscall_remap[] = {
-	-1, /* not implemented in x86-64 */
+	63, /* read - x86-64 syscall: 0 */
 	64, /* write - x86-64 syscall: 1 */
 	1024, /* open - x86-64 syscall: 2 */
 	57, /* close - x86-64 syscall: 3 */
@@ -369,7 +369,7 @@ static const short syscall_remap[] = {
 	288, /* pkey_mprotect - x86-64 syscall: 329 */
 	289, /* pkey_alloc - x86-64 syscall: 330 */
 	290, /* pkey_free - x86-64 syscall: 331 */
-	-1, /* not implemented in x86-64 */
+	291, /* statx - x86-64 syscall: 332 */
 	-1, /* not implemented in x86-64 */
 	-1, /* not implemented in x86-64 */
 	-1, /* not implemented in x86-64 */
@@ -580,7 +580,7 @@ static const short syscall_remap[] = {
 	271, /* process_vm_writev - x86-64 syscall: 540 */
 	208, /* setsockopt - x86-64 syscall: 541 */
 	209, /* getsockopt - x86-64 syscall: 542 */
-	-1, /* not implemented in x86-64 */
+	0, /* io_setup - x86-64 syscall: 543 */
 	2, /* io_submit - x86-64 syscall: 544 */
 	281, /* execveat - x86-64 syscall: 545 */
 	286, /* preadv2 - x86-64 syscall: 546 */
