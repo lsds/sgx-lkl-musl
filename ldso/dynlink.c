@@ -1771,9 +1771,13 @@ void __dls3(enclave_config_t *encl, void *tos)
 		dprintf(2, "Cannot load %s: %s\n", argv[0], strerror(errno));
 		_exit(1);
 	}
+	errno = 0;
 	Ehdr *ehdr = (void *)map_library(fd, &app);
 	if (!ehdr) {
-		dprintf(2, "%s: Not a valid dynamic program\n", argv[0]);
+		if (errno)
+			fprintf(stderr, "[    SGX-LKL   ] Error: Failed to map %s: %s\n", argv[0], strerror(errno));
+		else
+			dprintf(2, "%s: Not a valid dynamic program\n", argv[0]);
 		_exit(1);
 	}
 	close(fd);
