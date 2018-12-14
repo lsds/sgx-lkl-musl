@@ -7,6 +7,7 @@
 #include <sys/syscall.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
+#include <sys/sysinfo.h>
 #include "syscall_arch.h"
 #include "hostcalls.h"
 #include "sgxlkl_debug.h"
@@ -121,6 +122,10 @@ static inline long __filter_syscall1(long n, long a1) {
 	} else if (n == SYS_exit_group) {
 		host_syscall_SYS_exit_group((int)a1);
 		return 42;
+	} else if (n == SYS_sysinfo) {
+		long res = (long) syscall_SYS_sysinfo((struct sysinfo *) a1);
+		__log_syscall(SGXLKL_INTERNAL_SYSCALL, n, res, 1, a1);
+		return res;
 	} else {
 		params[0] = a1;
 		long res = lkl_syscall(n, params);
