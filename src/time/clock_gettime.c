@@ -72,8 +72,7 @@ __iter_div_u64_rem(uint64_t dividend, uint32_t divisor, uint64_t *remainder)
 	return ret;
 }
 
-static inline int
-vdso_read_begin(const struct vsyscall_gtod_data *s)
+static int vdso_read_begin(const struct vsyscall_gtod_data *s)
 {
 	unsigned ret;
 
@@ -87,12 +86,40 @@ retry:
 	return ret;
 }
 
-static inline int
-vdso_read_retry(const struct vsyscall_gtod_data *s, unsigned start)
+static int vdso_read_retry(const struct vsyscall_gtod_data *s, unsigned start)
 {
 	a_barrier();
 	return s->seq != start;
 }
+
+#ifndef SGXLKL_HW
+
+static uint64_t rdtsc_ordered(void)
+{
+	uint64_t low, high, ret;
+	a_barrier();
+	__asm("rdtscp" : "=a"(low), "=d"(high) : : "rcx");
+	return (high << 32) + low;
+}
+
+#define VCLOCK_TSC 1
+
+static uint64_t vgetsns(const volatile struct vsyscall_gtod_data *s, int volatile *mode)
+{
+	uint64_t v;
+	uint64_t cycles;
+
+	if (s->vclock_mode == VCLOCK_TSC) {
+		uint64_t rdtsc = (uint64_t)rdtsc_ordered();
+		uint64_t last = s->cycle_last;
+		cycles = (rdtsc >= last) ? rdtsc : last;
+	} else
+		return 0;
+
+	v = (cycles - s->cycle_last) & s->mask;
+	return v * s->mult;
+}
+#endif /* SGXLKL_HW */
 
 int __clock_gettime(clockid_t clk, struct timespec *ts)
 {
@@ -127,6 +154,11 @@ int __clock_gettime(clockid_t clk, struct timespec *ts)
 			ts->tv_sec = ptr->monotonic_time_sec;
 			ns = ptr->monotonic_time_snsec;
 		}
+#ifndef SGXLKL_HW
+		// This requires (efficient) RDTSC support which we don't have
+		// in SGX v1 where RDTSC instructions are illegal.
+		ns += vgetsns(ptr, &ptr->vclock_mode);
+#endif /* SGXLKL_HW */
 		ns >>= ptr->shift;
 //		} while (vdso_read_retry(ptr, seq));
 
