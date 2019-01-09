@@ -56,9 +56,11 @@ extern void* _dlstart_c(enclave_config_t *encl);
 void init_dso(char* base);
 void reloc_all();
 void decode_dyn();
+#else
+void (*sim_exit_handler) (int);
 #endif
 
-// Enclave config saved in startmain() just for exitmain()
+// Enclave config saved in startmain() for exitmain().
 static enclave_config_t *encl_config = NULL;
 
 struct timespec sgxlkl_app_starttime;
@@ -171,6 +173,11 @@ static int startmain(enclave_config_t *encl) {
         __libc_state = 2;
 	// Save the enclave config for exit handlers
 	encl_config = encl;
+
+#ifndef SGXLKL_HW
+	sim_exit_handler = encl->sim_exit_handler;
+#endif
+
 	int res = atexit(exitmain);
 	if (res != 0)
 		fprintf(stderr, "WARN: unable to register exit handler, code %d\n", res);
