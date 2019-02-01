@@ -243,7 +243,7 @@ static const short syscall_remap[] = {
 	122, /* sched_setaffinity - x86-64 syscall: 203 */
 	123, /* sched_getaffinity - x86-64 syscall: 204 */
 	-1, /* not implemented in x86-64 */
-	-1, /* not implemented in x86-64 */
+	0, /* io_setup - x86-64 syscall: 206 */
 	1, /* io_destroy - x86-64 syscall: 207 */
 	4, /* io_getevents - x86-64 syscall: 208 */
 	-1, /* not implemented in x86-64 */
