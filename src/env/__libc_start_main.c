@@ -8,9 +8,9 @@
 #include "lkl/asm/host_ops.h"
 #include "lkl/setup.h"
 
-#include "enclave_config.h"
+#include "sgx_enclave_config.h"
 #include "enclave_mem.h"
-#include "hostcall_interface.h"
+#include "sgx_hostcall_interface.h"
 #include "lthread.h"
 #include "pthread_impl.h"
 #include "sgxlkl_debug.h"

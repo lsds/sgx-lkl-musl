@@ -7,7 +7,7 @@
 #include "libc.h"
 #include "atomic.h"
 #include "syscall.h"
-#include "hostcalls.h"
+#include "sgx_hostcalls.h"
 #include "lthread.h"
 
 static int spawned_ethreads = 1;

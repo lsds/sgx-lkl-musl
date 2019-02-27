@@ -20,7 +20,7 @@
 #include "pthread_impl.h"
 #include "libc.h"
 #include "dynlink.h"
-#include "enclave_config.h"
+#include "sgx_enclave_config.h"
 #include <sys/prctl.h>
 
 static void error(const char *, ...);

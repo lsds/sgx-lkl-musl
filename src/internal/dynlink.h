@@ -4,7 +4,7 @@
 #include <features.h>
 #include <elf.h>
 #include <stdint.h>
-#include "enclave_config.h"
+#include "sgx_enclave_config.h"
 
 #if UINTPTR_MAX == 0xffffffff
 typedef Elf32_Ehdr Ehdr;

@@ -12,7 +12,7 @@
 #include "futex.h"
 
 #ifdef SGXLKL_HW
-#include "enclave_config.h"
+#include "sgx_enclave_config.h"
 #endif
 
 #define pthread __pthread

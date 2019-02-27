@@ -1,4 +1,4 @@
-#include "enclave_config.h"
+#include "sgx_enclave_config.h"
 
 #ifdef SGXLKL_HW
 void __sgx_lkl_entry(uint64_t call_id, void* arg);

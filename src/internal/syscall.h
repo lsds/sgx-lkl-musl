@@ -9,7 +9,7 @@
 #include <sys/stat.h>
 #include <sys/sysinfo.h>
 #include "syscall_arch.h"
-#include "hostcalls.h"
+#include "sgx_hostcalls.h"
 #include "sgxlkl_debug.h"
 #include "lkl.h"
 

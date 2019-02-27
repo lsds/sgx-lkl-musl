@@ -2,7 +2,7 @@
 #include <stdint.h>
 #include "syscall.h"
 #include "pthread_impl.h"
-#include "hostcall_interface.h"
+#include "sgx_hostcall_interface.h"
 
 int raise(int sig)
 {

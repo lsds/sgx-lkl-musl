@@ -1,6 +1,6 @@
 #include <stddef.h>
 #include "dynlink.h"
-#include "enclave_config.h"
+#include "sgx_enclave_config.h"
 
 #ifndef START
 #define START "_dlstart"
