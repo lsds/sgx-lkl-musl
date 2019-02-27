@@ -85,6 +85,9 @@ static inline void __log_syscall(int type, long n, long res, int params_len, ...
 	if (n == SYS_open || n == SYS_lstat) {
 		SGXLKL_TRACE_SYSCALL(type, "[tid=%-3d] %s\t%ld\t(%s, %ld, %ld, %ld) = %ld %s\n", tid, name, n,
 			(const char*)(params[0]), params[1], params[2], params[3], res, errmsg);
+	} else if (n == SYS_openat) {
+	    SGXLKL_TRACE_SYSCALL(type, "[tid=%-3d] %s\t%ld\t(%ld, %s, %ld, %ld) = %ld %s\n", tid, name, n,
+			params[0], (const char*)params[1], params[2], params[3], res, errmsg);
 	} else if (n == SYS_execve) {
 	    SGXLKL_TRACE_SYSCALL(type, "[tid=%-3d] %s\t%ld\t(%s, %s, %s, %ld, %ld) = %ld %s\n", tid, name, n,
 			(const char*)(params[0]), ((const char**)params[1])[0], ((const char**)params[1])[1], params[2], params[3], res, errmsg);
@@ -152,10 +155,11 @@ static inline long __filter_syscall2(long n, long a1, long a2) {
 		// Force call to go through libc clock_gettime implementation to make use of the vDSO path.
 		clockid_t clk = (clockid_t) a1;
 		struct timespec *ts = (struct timespec *) a2;
-		if (libc.vvar_base && (clk == CLOCK_REALTIME || clk == CLOCK_MONOTONIC)) {
+		if (libc.vvar_base && (clk == CLOCK_REALTIME || clk == CLOCK_MONOTONIC ||
+		                       clk == CLOCK_REALTIME_COARSE || clk == CLOCK_MONOTONIC_COARSE)) {
 			return clock_gettime(clk, ts);
 		}
-		return (long)host_syscall_SYS_clock_gettime((clockid_t)a1, (struct timespec*)a2);
+		return (long)host_syscall_SYS_clock_gettime(clk, ts);
 	} else if (n == SYS_clock_getres) {
 		return (long)host_syscall_SYS_clock_getres((clockid_t)a1, (struct timespec*)a2);
 	} else if (n == SYS_stat || n == SYS_lstat || (n == SYS_fstat && !(a1 == STDIN_FILENO || a1 == STDOUT_FILENO || a1 == STDERR_FILENO))) {
