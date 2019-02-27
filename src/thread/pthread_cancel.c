@@ -2,13 +2,11 @@
 #include <string.h>
 #include "pthread_impl.h"
 #include "syscall.h"
-#include "libc.h"
 #include <lthread.h>
 
 #if 0
 
-__attribute__((__visibility__("hidden")))
-long __cancel(), __syscall_cp_asm(), __syscall_cp_c();
+hidden long __cancel(), __syscall_cp_asm(), __syscall_cp_c();
 
 long __cancel()
 {
@@ -48,8 +46,7 @@ static void _sigaddset(sigset_t *set, int sig)
 	set->__bits[s/8/sizeof *set->__bits] |= 1UL<<(s&8*sizeof *set->__bits-1);
 }
 
-__attribute__((__visibility__("hidden")))
-extern const char __cp_begin[1], __cp_end[1], __cp_cancel[1];
+extern hidden const char __cp_begin[1], __cp_end[1], __cp_cancel[1];
 
 static void cancel_handler(int sig, siginfo_t *si, void *ctx)
 {
@@ -64,6 +61,9 @@ static void cancel_handler(int sig, siginfo_t *si, void *ctx)
 
 	if (self->cancelasync || pc >= (uintptr_t)__cp_begin && pc < (uintptr_t)__cp_end) {
 		uc->uc_mcontext.MC_PC = (uintptr_t)__cp_cancel;
+#ifdef CANCEL_GOT
+		uc->uc_mcontext.MC_GOT = CANCEL_GOT;
+#endif
 		return;
 	}
 

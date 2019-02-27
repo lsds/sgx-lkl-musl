@@ -4,6 +4,7 @@
 #include <sys/mman.h>
 #include "libc.h"
 #include "syscall.h"
+#include "malloc_impl.h"
 #include "enclave_mem.h"
 
 /* This function returns true if the interval [old,new]

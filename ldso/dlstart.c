@@ -1,5 +1,6 @@
 #include <stddef.h>
 #include "dynlink.h"
+#include "libc.h"
 #include "sgx_enclave_config.h"
 
 #ifndef START
@@ -12,7 +13,7 @@
 
 #ifndef GETFUNCSYM
 #define GETFUNCSYM(fp, sym, got) do { \
-	__attribute__((__visibility__("hidden"))) void sym(); \
+	hidden void sym(); \
 	static void (*static_func_ptr)() = sym; \
 	__asm__ __volatile__ ( "" : "+m"(static_func_ptr) : : "memory"); \
 	*(fp) = static_func_ptr; } while(0)

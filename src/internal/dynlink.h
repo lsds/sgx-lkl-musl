@@ -4,6 +4,8 @@
 #include <features.h>
 #include <elf.h>
 #include <stdint.h>
+#include <stddef.h>
+#include <stdarg.h>
 #include "sgx_enclave_config.h"
 
 #if UINTPTR_MAX == 0xffffffff
@@ -94,6 +96,14 @@ struct fdpic_dummy_loadmap {
 #define DYN_CNT 32
 
 typedef void* (*stage2_func)(unsigned char *, enclave_config_t *);
-typedef _Noreturn void (*stage3_func)(size_t *);
+typedef void* (*stage3_func)(size_t *);
+
+hidden void *__dlsym(void *restrict, const char *restrict, void *restrict);
+
+hidden void __dl_seterr(const char *, ...);
+hidden int __dl_invalid_handle(void *);
+hidden void __dl_vseterr(const char *, va_list);
+
+hidden ptrdiff_t __tlsdesc_static(), __tlsdesc_dynamic();
 
 #endif

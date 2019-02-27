@@ -18,6 +18,7 @@
 #define JT_PHYS_PAGES JT(8)
 #define JT_AVPHYS_PAGES JT(9)
 #define JT_ZERO JT(10)
+#define JT_DELAYTIMER_MAX JT(11)
 
 #define RLIM(x) (-32768|(RLIMIT_ ## x))
 
@@ -41,7 +42,7 @@ long sysconf(int name)
 		[_SC_TZNAME_MAX] = TZNAME_MAX,
 		[_SC_JOB_CONTROL] = 1,
 		[_SC_SAVED_IDS] = 1,
-		[_SC_REALTIME_SIGNALS] = 1,
+		[_SC_REALTIME_SIGNALS] = VER,
 		[_SC_PRIORITY_SCHEDULING] = -1,
 		[_SC_TIMERS] = VER,
 		[_SC_ASYNCHRONOUS_IO] = VER,
@@ -58,7 +59,7 @@ long sysconf(int name)
 		[_SC_AIO_LISTIO_MAX] = -1,
 		[_SC_AIO_MAX] = -1,
 		[_SC_AIO_PRIO_DELTA_MAX] = JT_ZERO, /* ?? */
-		[_SC_DELAYTIMER_MAX] = _POSIX_DELAYTIMER_MAX,
+		[_SC_DELAYTIMER_MAX] = JT_DELAYTIMER_MAX,
 		[_SC_MQ_OPEN_MAX] = -1,
 		[_SC_MQ_PRIO_MAX] = JT_MQ_PRIO_MAX,
 		[_SC_VERSION] = VER,
@@ -119,8 +120,8 @@ long sysconf(int name)
 		[_SC_XOPEN_XPG4] = -1,
 		[_SC_NZERO] = NZERO,
 		[_SC_XBS5_ILP32_OFF32] = -1,
-		[_SC_XBS5_ILP32_OFFBIG] = sizeof(long)==4 ? 1 : JT_ZERO,
-		[_SC_XBS5_LP64_OFF64] = sizeof(long)==8 ? 1 : JT_ZERO,
+		[_SC_XBS5_ILP32_OFFBIG] = sizeof(long)==4 ? 1 : -1,
+		[_SC_XBS5_LP64_OFF64] = sizeof(long)==8 ? 1 : -1,
 		[_SC_XBS5_LPBIG_OFFBIG] = -1,
 		[_SC_XOPEN_LEGACY] = -1,
 		[_SC_XOPEN_REALTIME] = -1,
@@ -149,8 +150,8 @@ long sysconf(int name)
 		[_SC_STREAMS] = JT_ZERO,
 		[_SC_2_PBS_CHECKPOINT] = -1,
 		[_SC_V6_ILP32_OFF32] = -1,
-		[_SC_V6_ILP32_OFFBIG] = sizeof(long)==4 ? 1 : JT_ZERO,
-		[_SC_V6_LP64_OFF64] = sizeof(long)==8 ? 1 : JT_ZERO,
+		[_SC_V6_ILP32_OFFBIG] = sizeof(long)==4 ? 1 : -1,
+		[_SC_V6_LP64_OFF64] = sizeof(long)==8 ? 1 : -1,
 		[_SC_V6_LPBIG_OFFBIG] = -1,
 		[_SC_HOST_NAME_MAX] = HOST_NAME_MAX,
 		[_SC_TRACE] = -1,
@@ -161,8 +162,8 @@ long sysconf(int name)
 		[_SC_IPV6] = VER,
 		[_SC_RAW_SOCKETS] = VER,
 		[_SC_V7_ILP32_OFF32] = -1,
-		[_SC_V7_ILP32_OFFBIG] = sizeof(long)==4 ? 1 : JT_ZERO,
-		[_SC_V7_LP64_OFF64] = sizeof(long)==8 ? 1 : JT_ZERO,
+		[_SC_V7_ILP32_OFFBIG] = sizeof(long)==4 ? 1 : -1,
+		[_SC_V7_LP64_OFF64] = sizeof(long)==8 ? 1 : -1,
 		[_SC_V7_LPBIG_OFFBIG] = -1,
 		[_SC_SS_REPL_MAX] = -1,
 		[_SC_TRACE_EVENT_NAME_MAX] = -1,
@@ -198,6 +199,8 @@ long sysconf(int name)
 		return PAGE_SIZE;
 	case JT_SEM_VALUE_MAX & 255:
 		return SEM_VALUE_MAX;
+	case JT_DELAYTIMER_MAX & 255:
+		return DELAYTIMER_MAX;
 	case JT_NPROCESSORS_CONF & 255:
 		return sysconf_nproc_conf;
 	case JT_NPROCESSORS_ONLN & 255:
@@ -205,7 +208,6 @@ long sysconf(int name)
 	case JT_PHYS_PAGES & 255:
 	case JT_AVPHYS_PAGES & 255: ;
 		unsigned long long mem;
-		int __lsysinfo(struct sysinfo *);
 		struct sysinfo si;
 		__lsysinfo(&si);
 		if (!si.mem_unit) si.mem_unit = 1;

@@ -1,6 +1,7 @@
 #ifndef _INTERNAL_SYSCALL_H
 #define _INTERNAL_SYSCALL_H
 
+#include <features.h>
 #include <lthread.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -30,8 +31,7 @@
 typedef long syscall_arg_t;
 #endif
 
-__attribute__((visibility("hidden")))
-long __syscall_ret(unsigned long), __syscall(syscall_arg_t, ...),
+hidden long __syscall_ret(unsigned long), __syscall(syscall_arg_t, ...),
 	__syscall_cp(syscall_arg_t, syscall_arg_t, syscall_arg_t, syscall_arg_t,
 	             syscall_arg_t, syscall_arg_t, syscall_arg_t);
 
@@ -279,8 +279,15 @@ static inline long __filter_syscall6(long n, long a1, long a2, long a3, long a4,
 #define __syscall_cp(...) __SYSCALL_DISP(__filter_syscall,__VA_ARGS__)
 #define syscall_cp(...) __syscall_ret(__syscall_cp(__VA_ARGS__))
 
+#ifndef SYSCALL_USE_SOCKETCALL
 #define __socketcall(nm,a,b,c,d,e,f) syscall(SYS_##nm, a, b, c, d, e, f)
 #define __socketcall_cp(nm,a,b,c,d,e,f) syscall_cp(SYS_##nm, a, b, c, d, e, f)
+#else
+#define __socketcall(nm,a,b,c,d,e,f) syscall(SYS_socketcall, __SC_##nm, \
+    ((long [6]){ (long)a, (long)b, (long)c, (long)d, (long)e, (long)f }))
+#define __socketcall_cp(nm,a,b,c,d,e,f) syscall_cp(SYS_socketcall, __SC_##nm, \
+    ((long [6]){ (long)a, (long)b, (long)c, (long)d, (long)e, (long)f }))
+#endif
 
 /* fixup legacy 16-bit junk */
 
@@ -431,15 +438,26 @@ static inline long __filter_syscall6(long n, long a1, long a2, long a3, long a4,
 #define __SC_recvmmsg    19
 #define __SC_sendmmsg    20
 
+#ifdef SYS_open
 #define __sys_open2(x,pn,fl) __filter_syscall2(SYS_open, pn, (fl)|O_LARGEFILE)
 #define __sys_open3(x,pn,fl,mo) __filter_syscall3(SYS_open, pn, (fl)|O_LARGEFILE, mo)
 #define __sys_open_cp2(x,pn,fl) __filter_syscall2(SYS_open, pn, (fl)|O_LARGEFILE)
 #define __sys_open_cp3(x,pn,fl,mo) __filter_syscall3(SYS_open, pn, (fl)|O_LARGEFILE, mo)
+#else
+#define __sys_open2(x,pn,fl) __filter_syscall3(SYS_openat, AT_FDCWD, pn, (fl)|O_LARGEFILE)
+#define __sys_open3(x,pn,fl,mo) __filter_syscall4(SYS_openat, AT_FDCWD, pn, (fl)|O_LARGEFILE, mo)
+#define __sys_open_cp2(x,pn,fl) __filter_syscall3(SYS_openat, AT_FDCWD, pn, (fl)|O_LARGEFILE)
+#define __sys_open_cp3(x,pn,fl,mo) __filter_syscall4(SYS_openat, AT_FDCWD, pn, (fl)|O_LARGEFILE, mo)
+#endif
 
 #define __sys_open(...) __SYSCALL_DISP(__sys_open,,__VA_ARGS__)
 #define sys_open(...) __syscall_ret(__sys_open(__VA_ARGS__))
 
 #define __sys_open_cp(...) __SYSCALL_DISP(__sys_open_cp,,__VA_ARGS__)
 #define sys_open_cp(...) __syscall_ret(__sys_open_cp(__VA_ARGS__))
+
+hidden void __procfdname(char __buf[static 15+3*sizeof(int)], unsigned);
+
+hidden void *__vdsosym(const char *, const char *);
 
 #endif

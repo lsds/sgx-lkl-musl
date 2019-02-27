@@ -23,8 +23,6 @@
  */
 #define FUTEX_BITSET_MATCH_ANY  0xffffffff
 
-int __futex(volatile int *, int, int, void *);
-
 void futex_tick(void);
 
 #endif

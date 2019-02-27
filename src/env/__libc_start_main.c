@@ -1,10 +1,12 @@
-#define _GNU_SOURCE
 #include <elf.h>
-#include <fcntl.h>
 #include <poll.h>
-#include <time.h>
+#include <fcntl.h>
+#include <signal.h>
+#include <unistd.h>
+#include "syscall.h"
 #include "atomic.h"
 #include "libc.h"
+#include <time.h>
 #include "lkl/asm/host_ops.h"
 #include "lkl/setup.h"
 
@@ -15,39 +17,21 @@
 #include "pthread_impl.h"
 #include "sgxlkl_debug.h"
 #include "sgxlkl_util.h"
-#include "syscall.h"
 
 #ifdef SGXLKL_HW
 #include <setjmp.h>
 #endif
 
-#define AUX_CNT 38
-
-extern struct mpmcq __scheduler_queue;
-extern struct mpmcq *__syscall_queue;
-extern struct mpmcq *__return_queue;
-
-int sgxlkl_verbose = 1;
-
-void __init_utls(size_t, Elf64_Phdr *);
-void __init_tls(void);
-
 static void dummy(void) {}
 weak_alias(dummy, _init);
-weak_alias(dummy, _preinit);
 
-__attribute__((__weak__, __visibility__("hidden")))
-extern void (*const __preinit_array_start)(void), (*const __preinit_array_end)(void);
-__attribute__((__weak__, __visibility__("hidden")))
-extern void (*const __init_array_start)(void), (*const __init_array_end)(void);
-
-extern void init_sysconf(long nproc_conf, long nproc_onln);
-
-_Noreturn void __dls3(enclave_config_t *encl, void *tos);
+extern weak hidden void (*const __init_array_start)(void), (*const __init_array_end)(void);
 
 static void dummy1(void *p) {}
 weak_alias(dummy1, __init_ssp);
-const char *__libc_get_version();
+
+extern void init_sysconf(long nproc_conf, long nproc_onln);
+_Noreturn void __dls3(enclave_config_t *encl, void *tos);
 
 #ifdef SGXLKL_HW
 extern void* _dlstart_c(enclave_config_t *encl);
@@ -59,6 +43,14 @@ void decode_dyn();
 void (*sim_exit_handler) (int);
 #endif
 
+#define AUX_CNT 38
+
+extern struct mpmcq __scheduler_queue;
+extern struct mpmcq *__syscall_queue;
+extern struct mpmcq *__return_queue;
+
+int sgxlkl_verbose = 1;
+
 // Enclave config saved in startmain() for exitmain().
 static enclave_config_t *encl_config = NULL;
 
@@ -67,7 +59,9 @@ struct timespec sgxlkl_app_starttime;
 struct lkl_host_operations lkl_host_ops;
 struct lkl_host_operations sgxlkl_host_ops;
 
-
+#ifdef __GNUC__
+__attribute__((__noinline__))
+#endif
 void __init_libc(char **envp, char *pn, enclave_config_t *encl)
 {
     size_t i, *auxv, aux[AUX_CNT] = { 0 };
@@ -92,11 +86,13 @@ void __init_libc(char **envp, char *pn, enclave_config_t *encl)
 
 
     struct pollfd pfd[3] = { {.fd=0}, {.fd=1}, {.fd=2} };
+    int r =
 #ifdef SYS_poll
     __syscall(SYS_poll, pfd, 3, 0);
 #else
     __syscall(SYS_ppoll, pfd, 3, &(struct timespec){0}, 0, _NSIG/8);
 #endif
+    if (r<0) a_crash();
     for (i=0; i<3; i++) if (pfd[i].revents&POLLNVAL)
         if (__sys_open("/dev/null", O_RDWR)<0)
             a_crash();
@@ -104,21 +100,19 @@ void __init_libc(char **envp, char *pn, enclave_config_t *encl)
 
 }
 
-static void __libc_start_preinit(void)
-{
-    _preinit();
-    uintptr_t a = (uintptr_t)&__preinit_array_start;
-    for (; a<(uintptr_t)&__preinit_array_end; a+=sizeof(void(*)()))
-        (*(void (**)())a)();
-}
-
-static void __libc_start_init(void)
+static void libc_start_init(void)
 {
     _init();
     uintptr_t a = (uintptr_t)&__init_array_start;
     for (; a<(uintptr_t)&__init_array_end; a+=sizeof(void(*)()))
         (*(void (**)(void))a)();
+
 }
+
+weak_alias(libc_start_init, __libc_start_init);
+
+typedef int lsm2_fn(int (*)(int,char **,char **), int, char **);
+static lsm2_fn libc_start_main_stage2;
 
 static void exitmain(void)
 {
@@ -161,12 +155,11 @@ static int startmain(enclave_config_t *encl) {
         for (i = 0; i < sizeof(ps)/sizeof(ps[0]); i++) {
             SGXLKL_VERBOSE("%s: %lu\n", ps[i].name, getenv_uint64(ps[i].name, ps[i].def, ps[i].max));
         }
-        SGXLKL_VERBOSE("__libc_get_version: %s\n", __libc_get_version());
+        SGXLKL_VERBOSE("__libc_version: %s\n", __libc_version);
         SGXLKL_VERBOSE("Maximum enclave threads (TCS): %d\n", get_enclave_parms()->tcsn);
     }
 #endif
 
-    __libc_start_preinit();
     __libc_start_init();
     a_barrier();
     __libc_state = 2;
@@ -246,21 +239,34 @@ int __libc_init_enclave(int argc, char **argv, enclave_config_t *encl)
 
 #endif /* SGXLKL_HW */
 
-        /* You shall not pass control to the application */
-        if (lthread_create(&lt, NULL, startmain, encl) == -1) {
-                exit(-1);
-        }
-        lthread_run();
-        return 0;
+    /* You shall not pass control to the application */
+    if (lthread_create(&lt, NULL, startmain, encl) == -1) {
+        exit(-1);
+    }
+    lthread_run();
+    return 0;
 }
 
 int __libc_start_main(int (*main)(int,char **,char **), int argc, char **argv)
 {
     char **envp = argv+argc+1;
 
+    /* External linkage, and explicit noinline attribute if available,
+     * are used to prevent the stack frame used during init from
+     * persisting for the entire process lifetime. */
     // libc is already inited at this point, don't init it again.
     //__init_libc(envp, argv[0]);
 
+    /* Barrier against hoisting application code or anything using ssp
+     * or thread pointer prior to its initialization above. */
+    lsm2_fn *stage2 = libc_start_main_stage2;
+    __asm__ ( "" : "+r"(stage2) : : "memory" );
+    return stage2(main, argc, argv);
+}
+
+static int libc_start_main_stage2(int (*main)(int,char **,char **), int argc, char **argv)
+{
+    char **envp = argv+argc+1;
     __libc_start_init();
 
     SGXLKL_VERBOSE("Calling main()\n");

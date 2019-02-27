@@ -37,7 +37,7 @@ Optional features:
   --enable-optimize=...   optimize listed components for speed over size [auto]
   --enable-debug          build with debugging information [disabled]
   --enable-warnings       build with recommended warnings flags [disabled]
-  --enable-visibility     use global visibility options to optimize PIC [auto]
+  --enable-visibility     use global visibility options to optimize PIC [no]
   --enable-wrapper=...    build given musl toolchain wrapper [auto]
   --disable-shared        inhibit building shared library [enabled]
   --disable-static        inhibit building static library [enabled]
@@ -148,7 +148,7 @@ target=
 optimize=auto
 debug=no
 warnings=no
-visibility=auto
+visibility=no
 shared=yes
 static=yes
 wrapper=auto
@@ -181,6 +181,7 @@ case "$arg" in
 --disable-debug|--enable-debug=no) debug=no ;;
 --enable-warnings|--enable-warnings=yes) warnings=yes ;;
 --disable-warnings|--enable-warnings=no) warnings=no ;;
+--enable-visibility=auto) visibility=auto ;;
 --enable-visibility|--enable-visibility=yes) visibility=yes ;;
 --disable-visibility|--enable-visibility=no) visibility=no ;;
 --enable-wrapper|--enable-wrapper=yes) wrapper=detect ;;
@@ -269,6 +270,7 @@ fi
 #
 tryflag   CFLAGS_TRY  -Werror=unknown-warning-option
 tryflag   CFLAGS_TRY  -Werror=unused-command-line-argument
+tryflag   CFLAGS_TRY  -Werror=ignored-optimization-argument
 tryldflag LDFLAGS_TRY -Werror=unknown-warning-option
 tryldflag LDFLAGS_TRY -Werror=unused-command-line-argument
 
@@ -338,13 +340,15 @@ i?86*) ARCH=i386 ;;
 x86_64-x32*|x32*|x86_64*x32) ARCH=x32 ;;
 x86_64-nt64*) ARCH=nt64 ;;
 x86_64*) ARCH=x86_64 ;;
+m68k*) ARCH=m68k ;;
 mips64*|mipsisa64*) ARCH=mips64 ;;
 mips*) ARCH=mips ;;
 microblaze*) ARCH=microblaze ;;
 or1k*) ARCH=or1k ;;
-powerpc64*) ARCH=powerpc64 ;;
-powerpc*) ARCH=powerpc ;;
+powerpc64*|ppc64*) ARCH=powerpc64 ;;
+powerpc*|ppc*) ARCH=powerpc ;;
 sh[1-9bel-]*|sh|superh*) ARCH=sh ;;
+s390x*) ARCH=s390x ;;
 unknown) fail "$0: unable to detect target arch; try $0 --target=..." ;;
 *) fail "$0: unknown or unsupported target \"$target\"" ;;
 esac
@@ -523,6 +527,13 @@ tryflag CFLAGS_AUTO -Werror=implicit-int
 tryflag CFLAGS_AUTO -Werror=pointer-sign
 tryflag CFLAGS_AUTO -Werror=pointer-arith
 
+#
+# GCC ignores unused arguements by default, but Clang needs this extra
+# parameter to stop printing warnings about LDFLAGS passed during
+# compiling stage and CFLAGS passed during linking stage.
+#
+test "$cc_family" = clang && tryflag CFLAGS_AUTO -Qunused-arguments
+
 if test "x$warnings" = xyes ; then
 tryflag CFLAGS_AUTO -Wall
 tryflag CFLAGS_AUTO -Wno-parentheses
@@ -567,8 +578,6 @@ CFLAGS_AUTO="$CFLAGS_AUTO -include vis.h"
 CFLAGS_AUTO="${CFLAGS_AUTO# }"
 fi
 
-CFLAGS_AUTO="$CFLAGS_AUTO -fPIC"
-
 # Determine if the compiler produces position-independent code (PIC)
 # by default. If so, we don't need to compile separate object files
 # for libc.a and libc.so.
@@ -602,14 +611,18 @@ tryldflag LDFLAGS_AUTO -Wl,--no-undefined
 # versions built without shared library support and pcc are broken.
 tryldflag LDFLAGS_AUTO -Wl,--exclude-libs=ALL
 
-# Linking with -Bsymbolic-functions is no longer mandatory for
-# the dynamic linker to work, but enable it if it works as
-# a linking optimization.
-tryldflag LDFLAGS_AUTO -Wl,-Bsymbolic-functions
+# Public data symbols must be interposable to allow for copy
+# relocations, but otherwise we want to bind symbols at libc link
+# time to eliminate startup relocations and PLT overhead. Use
+# --dynamic-list rather than -Bsymbolic-functions for greater
+# control over what symbols are left unbound.
+tryldflag LDFLAGS_AUTO -Wl,--dynamic-list="$srcdir/dynamic.list"
 
 # Find compiler runtime library
 test -z "$LIBCC" && tryldflag LIBCC -lgcc && tryldflag LIBCC -lgcc_eh
 test -z "$LIBCC" && tryldflag LIBCC -lcompiler_rt
+test -z "$LIBCC" && try_libcc=`$CC -print-libgcc-file-name 2>/dev/null` \
+                 && tryldflag LIBCC "$try_libcc"
 test -z "$LIBCC" && try_libcc=`$CC -print-file-name=libpcc.a 2>/dev/null` \
                  && tryldflag LIBCC "$try_libcc"
 printf "using compiler runtime libraries: %s\n" "$LIBCC"
@@ -623,6 +636,11 @@ trycppif __ILP32__ "$t" && ARCH=x32
 fi
 
 if test "$ARCH" = "arm" ; then
+if trycppif __thumb2__ "$t" ; then
+tryflag CFLAGS_AUTO -mimplicit-it=always
+tryflag CFLAGS_AUTO -Wa,-mimplicit-it=always
+tryflag CFLAGS_AUTO -Wa,-mthumb
+fi
 trycppif __ARMEB__ "$t" && SUBARCH=${SUBARCH}eb
 trycppif __ARM_PCS_VFP "$t" && SUBARCH=${SUBARCH}hf
 # Versions of clang up until at least 3.8 have the wrong constraint codes
@@ -643,6 +661,13 @@ fi
 
 if test "$ARCH" = "aarch64" ; then
 trycppif __AARCH64EB__ "$t" && SUBARCH=${SUBARCH}_be
+fi
+
+if test "$ARCH" = "m68k" ; then
+if trycppif "__HAVE_68881__" ; then : ;
+elif trycppif "__mcffpu__" ; then SUBARCH="-fp64"
+else SUBARCH="-sf"
+fi
 fi
 
 if test "$ARCH" = "mips" ; then
@@ -714,9 +739,8 @@ esac
 #
 printf "checking whether compiler's long double definition matches float.h... "
 echo '#include <float.h>' > "$tmpc"
-echo '#if LDBL_MANT_DIG == 53' >> "$tmpc"
-echo 'typedef char ldcheck[9-(int)sizeof(long double)];' >> "$tmpc"
-echo '#endif' >> "$tmpc"
+echo '#define C(m,s) (m==LDBL_MANT_DIG && s==sizeof(long double))' >> "$tmpc"
+echo 'typedef char ldcheck[(C(53,8)||C(64,12)||C(64,16)||C(113,16))*2-1];' >> "$tmpc"
 if $CC $CFLAGS_C99FSE \
   -I$srcdir/arch/$ARCH -I$srcdir/arch/generic -I$srcdir/include \
   $CPPFLAGS $CFLAGS -c -o /dev/null "$tmpc" >/dev/null 2>&1 ; then
@@ -761,6 +785,7 @@ cmdline=$(quote "$0")
 for i ; do cmdline="$cmdline $(quote "$i")" ; done
 
 exec 3>&1 1>config.mak
+
 
 cat << EOF
 # This version of config.mak was generated by:

@@ -73,18 +73,18 @@ void *__copy_utls(struct lthread *lt, unsigned char *mem, size_t sz)
 {
 	struct tls_module *p;
 	size_t i;
-	void **dtv;
+	uintptr_t *dtv;
 
-	dtv = (void **)mem;
+	dtv = (uintptr_t *)mem;
 
 	mem += sz - sizeof(struct lthread_tcb_base);
 	mem -= (uintptr_t)mem & (libc.tls_align-1);
 
 	for (i=1, p=libc.tls_head; p; i++, p=p->next) {
-		dtv[i] = mem - p->offset;
-		memcpy(dtv[i], p->image, p->len);
+		dtv[i] = (uintptr_t)(mem - p->offset) + DTP_OFFSET;
+		memcpy(mem - p->offset, p->image, p->len);
 	}
-	dtv[0] = (void *)libc.tls_cnt;
+	dtv[0] = libc.tls_cnt;
 	lt->dtv = lt->dtv_copy = dtv;
 	return (void *) mem;
 }
@@ -100,8 +100,8 @@ void __init_utls(struct tls_module *apptls)
 
 	main_tls.size += (-main_tls.size - (uintptr_t)main_tls.image)
 		& (main_tls.align-1);
-	if (main_tls.align < MIN_TLS_ALIGN) main_tls.align = MIN_TLS_ALIGN;
 	main_tls.offset = main_tls.size;
+	if (main_tls.align < MIN_TLS_ALIGN) main_tls.align = MIN_TLS_ALIGN;
 
 	libc.tls_align = main_tls.align;
 	libc.tls_size = 2*sizeof(void *) + sizeof(struct lthread_tcb_base)
