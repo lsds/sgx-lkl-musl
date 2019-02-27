@@ -182,7 +182,12 @@ static int startmain(enclave_config_t *encl) {
         fprintf(stderr, "WARN: unable to register exit handler, code %d\n", res);
 
     // Setup LKL (hd, net, memory) and start a kernel (synchronous method)
+
+    // SGX-LKL lthreads inherit names from their parent. Set this to "kernel"
+    // temporarily to be able to identify LKL kernel threads.
+    lthread_set_funcname(lthread_self(), "kernel");
     __lkl_start_init(encl);
+    lthread_set_funcname(lthread_self(), "sgx-lkl-init");
 
     // Launch stage 3 dynamic linker, passing in top of stack to overwrite.
     // The dynamic linker will then load the application proper; here goes!
