@@ -11,6 +11,7 @@
 #include "syscall_arch.h"
 #include "hostcalls.h"
 #include "sgxlkl_debug.h"
+#include "lkl.h"
 
 #ifndef SYSCALL_RLIM_INFINITY
 #define SYSCALL_RLIM_INFINITY (~0ULL)
@@ -34,83 +35,17 @@ long __syscall_ret(unsigned long), __syscall(syscall_arg_t, ...),
 	__syscall_cp(syscall_arg_t, syscall_arg_t, syscall_arg_t, syscall_arg_t,
 	             syscall_arg_t, syscall_arg_t, syscall_arg_t);
 
-const char* lkl_strerror(int err);
-
-extern int sgxlkl_trace_lkl_syscall;
-extern int sgxlkl_trace_internal_syscall;
-extern int sgxlkl_use_host_network;
-
-#undef __LKL_SYSCALL
-#define __LKL_SYSCALL(nr) { (const char*)(__lkl__NR_ ## nr), #nr },
-#include <lkl.h>
-static const char* __lkl_syscall_names[][2] = {
-#include <lkl/syscalls.h>
-	{ NULL, NULL },
-#undef __LKL_SYSCALL
-};
-
-#ifdef DEBUG
-static inline void __log_syscall(int type, long n, long res, int params_len, ...)
-{
-	const char* name = NULL;
-	char errmsg[255] = {0};
-
-	if (!sgxlkl_trace_lkl_syscall && type == SGXLKL_LKL_SYSCALL)
-		return;
-
-	if (!sgxlkl_trace_internal_syscall && type == SGXLKL_INTERNAL_SYSCALL)
-		return;
-
-	long params[6] = {0};
-	va_list valist;
-        va_start(valist, params_len);
-        for(int i = 0; i < params_len; i++) {
-		params[i] = va_arg(valist, long);
-	}
-	va_end(valist);
-
-	for (int i = 0; __lkl_syscall_names[i][1] != NULL; i++) {
-		if ((long)__lkl_syscall_names[i][0] == n) {
-			name = __lkl_syscall_names[i][1];
-			break;
-		}
-	}
-
-	if (name == NULL)
-		name = "### INVALID ###";
-	if (res < 0)
-		snprintf(errmsg, sizeof(errmsg), " (%s) <--- !", lkl_strerror(res));
-
-	int tid = lthread_self() ? lthread_self()->tid : 0;
-	if (n == SYS_open || n == SYS_lstat) {
-		SGXLKL_TRACE_SYSCALL(type, "[tid=%-3d] %s\t%ld\t(%s, %ld, %ld, %ld) = %ld %s\n", tid, name, n,
-			(const char*)(params[0]), params[1], params[2], params[3], res, errmsg);
-	} else if (n == SYS_openat) {
-	    SGXLKL_TRACE_SYSCALL(type, "[tid=%-3d] %s\t%ld\t(%ld, %s, %ld, %ld) = %ld %s\n", tid, name, n,
-			params[0], (const char*)params[1], params[2], params[3], res, errmsg);
-	} else if (n == SYS_execve) {
-	    SGXLKL_TRACE_SYSCALL(type, "[tid=%-3d] %s\t%ld\t(%s, %s, %s, %ld, %ld) = %ld %s\n", tid, name, n,
-			(const char*)(params[0]), ((const char**)params[1])[0], ((const char**)params[1])[1], params[2], params[3], res, errmsg);
-	} else {
-	    SGXLKL_TRACE_SYSCALL(type, "[tid=%-3d] %s\t%ld\t(%ld, %ld, %ld, %ld, %ld, %ld) = %ld%s\n", tid, name, n,
-			params[0], params[1], params[2], params[3], params[4], params[5], res, errmsg);
-	}
-}
-#else
-static inline void __log_syscall(int type, long n, long res, int params_len, ...) { /* empty */ }
-#endif
-
 static inline long __filter_syscall0(long n) {
 	long params[6] = {0};
 	if (n == SYS_gettid) {
 		long res = (long)lthread_id();
-		__log_syscall(SGXLKL_INTERNAL_SYSCALL, n, res, 0);
+		log_sgxlkl_syscall(SGXLKL_INTERNAL_SYSCALL, n, res, 0);
 		return res;
 	} else if (n == SYS_munlockall) {
 		return (long)host_syscall_SYS_munlockall();
 	} else {
 		long res = lkl_syscall(n, params);
-		__log_syscall(SGXLKL_LKL_SYSCALL, n, res, 0);
+		log_sgxlkl_syscall(SGXLKL_LKL_SYSCALL, n, res, 0);
 		return res;
 	}
 }
@@ -127,12 +62,12 @@ static inline long __filter_syscall1(long n, long a1) {
 		return 42;
 	} else if (n == SYS_sysinfo) {
 		long res = (long) syscall_SYS_sysinfo((struct sysinfo *) a1);
-		__log_syscall(SGXLKL_INTERNAL_SYSCALL, n, res, 1, a1);
+		log_sgxlkl_syscall(SGXLKL_INTERNAL_SYSCALL, n, res, 1, a1);
 		return res;
 	} else {
 		params[0] = a1;
 		long res = lkl_syscall(n, params);
-		__log_syscall(SGXLKL_LKL_SYSCALL, n, res, 1, a1);
+		log_sgxlkl_syscall(SGXLKL_LKL_SYSCALL, n, res, 1, a1);
 
 		return res;
 	}
@@ -147,7 +82,7 @@ static inline long __filter_syscall2(long n, long a1, long a2) {
 		return (long)host_syscall_SYS_tkill((int)a1, (int)a2);
 	} else if (n == SYS_munmap) {
 		long res = (long)syscall_SYS_munmap((void*)a1, (size_t)a2);
-		__log_syscall(SGXLKL_INTERNAL_SYSCALL, n, res, 2, a1, a2);
+		log_sgxlkl_syscall(SGXLKL_INTERNAL_SYSCALL, n, res, 2, a1, a2);
 		return res;
 	} else if (n == SYS_nanosleep) {
 		return (long)host_syscall_SYS_nanosleep((const struct timespec*)a1, (struct timespec*)a2);
@@ -167,7 +102,7 @@ static inline long __filter_syscall2(long n, long a1, long a2) {
 		params[0] = a1;
 		params[1] = (long) &tmp_stat;
 		long res = lkl_syscall(n, params);
-		__log_syscall(SGXLKL_LKL_SYSCALL, n, res, 2, a1, a2);
+		log_sgxlkl_syscall(SGXLKL_LKL_SYSCALL, n, res, 2, a1, a2);
 		if (res == 0) {
 			struct stat *res_stat = (struct stat*) a2;
 
@@ -201,7 +136,7 @@ static inline long __filter_syscall2(long n, long a1, long a2) {
 		params[0] = a1;
 		params[1] = a2;
 		long res = lkl_syscall(n, params);
-		__log_syscall(SGXLKL_LKL_SYSCALL, n, res, 2, a1, a2);
+		log_sgxlkl_syscall(SGXLKL_LKL_SYSCALL, n, res, 2, a1, a2);
 
 		return res;
 	}
@@ -229,7 +164,7 @@ static inline long __filter_syscall3(long n, long a1, long a2, long a3) {
 		params[1] = a2;
 		params[2] = a3;
 		long res = lkl_syscall(n, params);
-		__log_syscall(SGXLKL_LKL_SYSCALL, n, res, 3, a1, a2, a3);
+		log_sgxlkl_syscall(SGXLKL_LKL_SYSCALL, n, res, 3, a1, a2, a3);
 
 		return res;
 	}
@@ -253,7 +188,7 @@ static inline long __filter_syscall4(long n, long a1, long a2, long a3, long a4)
 		params[2] = a3;
 		params[3] = a4;
 		long res = lkl_syscall(n, params);
-		__log_syscall(SGXLKL_LKL_SYSCALL, n, res, 4, a1, a2, a3, a4);
+		log_sgxlkl_syscall(SGXLKL_LKL_SYSCALL, n, res, 4, a1, a2, a3, a4);
 
 		return res;
 	}
@@ -263,7 +198,7 @@ static inline long __filter_syscall5(long n, long a1, long a2, long a3, long a4,
 	long params[6] = {0};
 	if (n == SYS_mremap) {
 		long res = (long)syscall_SYS_mremap((void*)a1, (size_t)a2, (size_t)a3, (int)a4, (void*)a5);
-		__log_syscall(SGXLKL_INTERNAL_SYSCALL, n, res, 5, a1, a2, a3, a4, a5);
+		log_sgxlkl_syscall(SGXLKL_INTERNAL_SYSCALL, n, res, 5, a1, a2, a3, a4, a5);
 		return res;
 	} else {
 		params[0] = a1;
@@ -272,7 +207,7 @@ static inline long __filter_syscall5(long n, long a1, long a2, long a3, long a4,
 		params[3] = a4;
 		params[4] = a5;
 		long res = lkl_syscall(n, params);
-		__log_syscall(SGXLKL_LKL_SYSCALL, n, res, 5, a1, a2, a3, a4, a5);
+		log_sgxlkl_syscall(SGXLKL_LKL_SYSCALL, n, res, 5, a1, a2, a3, a4, a5);
 
 		return res;
 	}
@@ -291,21 +226,21 @@ static inline long __filter_syscall6(long n, long a1, long a2, long a3, long a4,
 		{
 			params[3]=MAP_PRIVATE;
 			long res = lkl_syscall(n, params);
-			__log_syscall(SGXLKL_LKL_SYSCALL, n, res, 6, a1, a2, a3, a4, a5, a6);
+			log_sgxlkl_syscall(SGXLKL_LKL_SYSCALL, n, res, 6, a1, a2, a3, a4, a5, a6);
 
 			return res;
 		}
 		else
 		{
 			long res = (long)syscall_SYS_mmap((void*)a1, (size_t)a2, (int)a3, (int)a4, (int)a5, (off_t)a6);
-			__log_syscall(SGXLKL_INTERNAL_SYSCALL, n, res, 6, a1, a2, a3, a4, a5, a6);
+			log_sgxlkl_syscall(SGXLKL_INTERNAL_SYSCALL, n, res, 6, a1, a2, a3, a4, a5, a6);
 			return res;
 		}
 
 	} else if (n == SYS_futex) {
 		long res = (long)syscall_SYS_futex((int*)a1, (int)a2, (int)a3, (const struct timespec*)a4,
 			(int*)a5, (int)a6);
-		__log_syscall(SGXLKL_INTERNAL_SYSCALL, n, res, 6, a1, a2, a3, a4, a5, a6);
+		log_sgxlkl_syscall(SGXLKL_INTERNAL_SYSCALL, n, res, 6, a1, a2, a3, a4, a5, a6);
 		return res;
 	} else {
 		params[0] = a1;
@@ -315,7 +250,7 @@ static inline long __filter_syscall6(long n, long a1, long a2, long a3, long a4,
 		params[4] = a5;
 		params[5] = a6;
 		long res = lkl_syscall(n, params);
-		__log_syscall(SGXLKL_LKL_SYSCALL, n, res, 6, a1, a2, a3, a4, a5, a6);
+		log_sgxlkl_syscall(SGXLKL_LKL_SYSCALL, n, res, 6, a1, a2, a3, a4, a5, a6);
 
 		return res;
 	}
