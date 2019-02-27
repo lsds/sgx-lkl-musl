@@ -97,7 +97,7 @@ static inline long __filter_syscall2(long n, long a1, long a2) {
 		return (long)host_syscall_SYS_clock_gettime(clk, ts);
 	} else if (n == SYS_clock_getres) {
 		return (long)host_syscall_SYS_clock_getres((clockid_t)a1, (struct timespec*)a2);
-	} else if (n == SYS_stat || n == SYS_lstat || (n == SYS_fstat && !(a1 == STDIN_FILENO || a1 == STDOUT_FILENO || a1 == STDERR_FILENO))) {
+	} else if (n == SYS_fstat && !(a1 == STDIN_FILENO || a1 == STDOUT_FILENO || a1 == STDERR_FILENO)) {
 		struct lkl_stat tmp_stat;
 		params[0] = a1;
 		params[1] = (long) &tmp_stat;
