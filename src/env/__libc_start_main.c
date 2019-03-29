@@ -62,12 +62,49 @@ struct lkl_host_operations sgxlkl_host_ops;
 #ifdef __GNUC__
 __attribute__((__noinline__))
 #endif
+
+static size_t *init_aux(size_t *auxv_base) {
+    size_t i, aux_base[AUX_CNT] = { 0 };
+    for (i = 0; auxv_base[i]; i += 2)
+        if (auxv_base[i] < AUX_CNT)
+            aux_base[auxv_base[i]] = auxv_base[i + 1];
+
+    // By default auxv[AT_RANDOM] points to a buffer with 16 random bytes.
+    uint64_t *rbuf = malloc(16);
+    // TODO Use intrinsics
+    // if (!_rdrand64_step(&rbuf[0]))
+    //    goto err;
+    register uint64_t rd;
+    __asm__ volatile ( "rdrand %0;" : "=r" ( rd ) );
+    rbuf[0] = rd;
+    __asm__ volatile ( "rdrand %0;" : "=r" ( rd ) );
+    rbuf[1] = rd;
+
+    size_t *auxv = malloc(24 * sizeof(*auxv));
+    memset(auxv, 0, 24 * sizeof(*auxv));
+    auxv[0]  = AT_CLKTCK;   auxv[1]  = 100;
+    auxv[2]  = AT_EXECFN;   auxv[3]  = "";
+    auxv[4]  = AT_HWCAP;    auxv[5]  = auxv_base[AT_HWCAP];
+    auxv[6]  = AT_EGID;     auxv[7]  = 0;
+    auxv[8]  = AT_EUID;     auxv[9]  = 0;
+    auxv[10] = AT_GID;      auxv[11] = 0;
+    auxv[12] = AT_PAGESZ;   auxv[13] = auxv_base[AT_PAGESZ];
+    auxv[14] = AT_PLATFORM; auxv[15] = "x86_64";
+    auxv[16] = AT_SECURE;   auxv[17] = 0;
+    auxv[18] = AT_UID;      auxv[19] = 0;
+    auxv[20] = AT_RANDOM;   auxv[21] = rbuf;
+    auxv[22] = AT_NULL;     auxv[23] = 0;
+
+
+    return auxv;
+}
+
 void __init_libc(char **envp, char *pn, enclave_config_t *encl)
 {
     size_t i, *auxv, aux[AUX_CNT] = { 0 };
     __environ = envp;
     for (i=0; envp[i]; i++);
-    libc.auxv = auxv = (void *)(envp+i+1);
+    libc.auxv = auxv = init_aux((void *)(envp+i+1));
     for (i=0; auxv[i]; i+=2) if (auxv[i]<AUX_CNT) aux[auxv[i]] = auxv[i+1];
     __hwcap = aux[AT_HWCAP];
     __sysinfo = aux[AT_SYSINFO];
@@ -80,10 +117,8 @@ void __init_libc(char **envp, char *pn, enclave_config_t *encl)
 
     __init_ssp((void *)aux[AT_RANDOM]);
 
-
     if (aux[AT_UID]==aux[AT_EUID] && aux[AT_GID]==aux[AT_EGID]
         && !aux[AT_SECURE]) return;
-
 
     struct pollfd pfd[3] = { {.fd=0}, {.fd=1}, {.fd=2} };
     int r =
