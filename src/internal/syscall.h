@@ -62,7 +62,7 @@ static inline long __filter_syscall0(long n) {
 		log_sgxlkl_syscall(SGXLKL_INTERNAL_SYSCALL, n, res, 0);
 		return res;
 	} else if (n == SYS_munlockall) {
-		return (long)host_syscall_SYS_munlockall();
+		return 0 /* No-op */;
 	} else {
 		long res = lkl_syscall(n, params);
 		log_sgxlkl_syscall(SGXLKL_LKL_SYSCALL, n, res, 0);
@@ -74,12 +74,6 @@ static inline long __filter_syscall1(long n, long a1) {
 	long params[6] = {0};
 	if (n == SYS_set_tid_address) {
 		return (long)host_syscall_SYS_set_tid_address((int*)a1);
-	} else if (n == SYS_exit) {
-		host_syscall_SYS_exit((int)a1);
-		return 42;
-	} else if (n == SYS_exit_group) {
-		host_syscall_SYS_exit_group((int)a1);
-		return 42;
 	} else if (n == SYS_sysinfo) {
 		long res = (long) syscall_SYS_sysinfo((struct sysinfo *) a1);
 		log_sgxlkl_syscall(SGXLKL_INTERNAL_SYSCALL, n, res, 1, a1);
