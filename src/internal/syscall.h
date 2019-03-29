@@ -10,6 +10,7 @@
 #include <sys/stat.h>
 #include <sys/sysinfo.h>
 #include "syscall_arch.h"
+#include "enclave_mem.h"
 #include "sgx_hostcalls.h"
 #include "sgxlkl_debug.h"
 #include "lkl.h"
@@ -230,27 +231,22 @@ static inline long __filter_syscall5(long n, long a1, long a2, long a3, long a4,
 static inline long __filter_syscall6(long n, long a1, long a2, long a3, long a4, long a5, long a6) {
 	long params[6] = {0};
 	if (n == SYS_mmap) {
-		params[0] = a1;
-		params[1] = a2;
-		params[2] = a3;
-		params[3] = a4;
-		params[4] = a5;
-		params[5] = a6;
-		if (a4 == MAP_PRIVATE || a4 == MAP_SHARED)
-		{
-			params[3]=MAP_PRIVATE;
-			long res = lkl_syscall(n, params);
-			log_sgxlkl_syscall(SGXLKL_LKL_SYSCALL, n, res, 6, a1, a2, a3, a4, a5, a6);
-
-			return res;
-		}
-		else
-		{
+		if (enclave_mmap_flags_supported((int) a4, (int) a5)) {
 			long res = (long)syscall_SYS_mmap((void*)a1, (size_t)a2, (int)a3, (int)a4, (int)a5, (off_t)a6);
 			log_sgxlkl_syscall(SGXLKL_INTERNAL_SYSCALL, n, res, 6, a1, a2, a3, a4, a5, a6);
 			return res;
+		// If SGX-LKL can't handle mmap request, try LKL.
+		} else {
+			params[0] = a1;
+			params[1] = a2;
+			params[2] = a3;
+			params[3] = MAP_PRIVATE;
+			params[4] = a5;
+			params[5] = a6;
+			long res = lkl_syscall(n, params);
+			log_sgxlkl_syscall(SGXLKL_LKL_SYSCALL, n, res, 6, a1, a2, a3, a4, a5, a6);
+			return res;
 		}
-
 	} else if (n == SYS_futex) {
 		long res = (long)syscall_SYS_futex((int*)a1, (int)a2, (int)a3, (const struct timespec*)a4,
 			(int*)a5, (int)a6);
