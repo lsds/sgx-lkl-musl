@@ -32,9 +32,36 @@
 typedef long syscall_arg_t;
 #endif
 
+
 hidden long __syscall_ret(unsigned long), __syscall(syscall_arg_t, ...),
 	__syscall_cp(syscall_arg_t, syscall_arg_t, syscall_arg_t, syscall_arg_t,
 	             syscall_arg_t, syscall_arg_t, syscall_arg_t);
+
+static const long SYSCALLS_NOOP[] = {
+                SYS_munlock,
+                SYS_munlockall,
+                SYS_set_tid_address
+                };
+static const long SYSCALLS_NOT_IMPLEMENTED[] = {
+                SYS_sigaltstack,
+                SYS_kill,
+                SYS_brk,
+                SYS_sched_setaffinity
+                };
+
+static int is_noop(long no) {
+	for (size_t i = 0; i < sizeof(SYSCALLS_NOOP) / sizeof(SYSCALLS_NOOP[0]); i++)
+		if (SYSCALLS_NOOP[i] == no)
+			return 1;
+	return 0;
+}
+
+static int not_implemented(long no) {
+	for (size_t i = 0; i < sizeof(SYSCALLS_NOT_IMPLEMENTED) / sizeof(SYSCALLS_NOT_IMPLEMENTED[0]); i++)
+		if (SYSCALLS_NOT_IMPLEMENTED[i] == no)
+			return 1;
+	return 0;
+}
 
 static void copy_lkl_stat_to_user(struct lkl_stat *lkl_stat, struct stat *stat) {
 	stat->st_dev = lkl_stat->st_dev;
@@ -56,13 +83,14 @@ static void copy_lkl_stat_to_user(struct lkl_stat *lkl_stat, struct stat *stat) 
 }
 
 static inline long __filter_syscall0(long n) {
+	if (is_noop(n)) return 0;
+	if (not_implemented(n)) return -ENOSYS;
+
 	long params[6] = {0};
 	if (n == SYS_gettid) {
 		long res = (long)lthread_id();
 		log_sgxlkl_syscall(SGXLKL_INTERNAL_SYSCALL, n, res, 0);
 		return res;
-	} else if (n == SYS_munlockall) {
-		return 0 /* No-op */;
 	} else {
 		long res = lkl_syscall(n, params);
 		log_sgxlkl_syscall(SGXLKL_LKL_SYSCALL, n, res, 0);
@@ -71,10 +99,12 @@ static inline long __filter_syscall0(long n) {
 }
 
 static inline long __filter_syscall1(long n, long a1) {
+	if (is_noop(n)) return 0;
+	if (not_implemented(n)) return -ENOSYS;
+
 	long params[6] = {0};
-	if (n == SYS_set_tid_address) {
-		return (long)host_syscall_SYS_set_tid_address((int*)a1);
-	} else if (n == SYS_sysinfo) {
+
+	if (n == SYS_sysinfo) {
 		long res = (long) syscall_SYS_sysinfo((struct sysinfo *) a1);
 		log_sgxlkl_syscall(SGXLKL_INTERNAL_SYSCALL, n, res, 1, a1);
 		return res;
@@ -88,11 +118,12 @@ static inline long __filter_syscall1(long n, long a1) {
 }
 
 static inline long __filter_syscall2(long n, long a1, long a2) {
+	if (is_noop(n)) return 0;
+	if (not_implemented(n)) return -ENOSYS;
+
 	long params[6] = {0};
 
-	if (n == SYS_kill) {
-		return (long)host_syscall_SYS_kill((pid_t)a1, (int)a2);
-	} else if (n == SYS_tkill) {
+	if (n == SYS_tkill) {
 		return (long)host_syscall_SYS_tkill((int)a1, (int)a2);
 	} else if (n == SYS_munmap) {
 		long res = (long)syscall_SYS_munmap((void*)a1, (size_t)a2);
@@ -123,8 +154,6 @@ static inline long __filter_syscall2(long n, long a1, long a2) {
 	      	return res;
 	} else if (n == SYS_fstat && (a1 == STDIN_FILENO || a1 == STDOUT_FILENO || a1 == STDERR_FILENO)) {
                 return (long)host_syscall_SYS_fstat((int)a1, (struct stat *)a2);
-	} else if (n == SYS_sigaltstack) {
-		return (long)host_syscall_SYS_sigaltstack((stack_t*)a1, (stack_t*)a2);
 	} else if (n == SYS_rt_sigpending) {
 		return (long)host_syscall_SYS_rt_sigpending((sigset_t *)a1, (unsigned long)a2);
 	} else if (n == SYS_rt_sigsuspend) {
@@ -140,6 +169,9 @@ static inline long __filter_syscall2(long n, long a1, long a2) {
 }
 
 static inline long __filter_syscall3(long n, long a1, long a2, long a3) {
+	if (is_noop(n)) return 0;
+	if (not_implemented(n)) return -ENOSYS;
+
 	long params[6] = {0};
 
 	if (n == SYS_writev && (a1 == STDOUT_FILENO || a1 == STDERR_FILENO)) {
@@ -168,7 +200,11 @@ static inline long __filter_syscall3(long n, long a1, long a2, long a3) {
 }
 
 static inline long __filter_syscall4(long n, long a1, long a2, long a3, long a4) {
+	if (is_noop(n)) return 0;
+	if (not_implemented(n)) return -ENOSYS;
+
 	long params[6] = {0};
+
 	if (n == SYS_rt_sigprocmask) {
 		return (long)host_syscall_SYS_rt_sigprocmask((int)a1, (void*)a2, (sigset_t*)a3, (unsigned long)a4);
 	} else if (n == SYS_rt_sigtimedwait) {
@@ -204,7 +240,11 @@ static inline long __filter_syscall4(long n, long a1, long a2, long a3, long a4)
 }
 
 static inline long __filter_syscall5(long n, long a1, long a2, long a3, long a4, long a5) {
+	if (is_noop(n)) return 0;
+	if (not_implemented(n)) return -ENOSYS;
+
 	long params[6] = {0};
+
 	if (n == SYS_mremap) {
 		long res = (long)syscall_SYS_mremap((void*)a1, (size_t)a2, (size_t)a3, (int)a4, (void*)a5);
 		log_sgxlkl_syscall(SGXLKL_INTERNAL_SYSCALL, n, res, 5, a1, a2, a3, a4, a5);
@@ -223,7 +263,11 @@ static inline long __filter_syscall5(long n, long a1, long a2, long a3, long a4,
 }
 
 static inline long __filter_syscall6(long n, long a1, long a2, long a3, long a4, long a5, long a6) {
+	if (is_noop(n)) return 0;
+	if (not_implemented(n)) return -ENOSYS;
+
 	long params[6] = {0};
+
 	if (n == SYS_mmap) {
 		if (enclave_mmap_flags_supported((int) a4, (int) a5)) {
 			long res = (long)syscall_SYS_mmap((void*)a1, (size_t)a2, (int)a3, (int)a4, (int)a5, (off_t)a6);
