@@ -271,6 +271,9 @@ typedef int sig_atomic_t;
 void (*signal(int, void (*)(int)))(int);
 int raise(int);
 
+void (*sigsegv_handler) (int sig, siginfo_t *si, void *unused);
+void (*sigfpe_handler) (int sig, siginfo_t *si, void *unused);
+
 #ifdef __cplusplus
 }
 #endif

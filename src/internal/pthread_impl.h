@@ -261,6 +261,4 @@ extern hidden unsigned __default_guardsize;
 
 #define __ATTRP_C11_THREAD ((void*)(uintptr_t)-1)
 
-void (* segv_handler) (int sig, siginfo_t *si, void *unused);
-
 #endif

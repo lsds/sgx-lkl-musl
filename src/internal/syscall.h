@@ -223,7 +223,7 @@ static inline long __filter_syscall4(long n, long a1, long a2, long a3, long a4)
 		return res;
 	}
 #ifndef SGXLKL_HW
-	else if (n == SYS_rt_sigaction && a1 == SIGSEGV) {
+	else if (n == SYS_rt_sigaction && (a1 == SIGSEGV || a1 == SIGFPE)) {
 		return (long) host_syscall_SYS_rt_sigaction((int)a1, (struct sigaction *)a2, (struct sigaction *)a3, (unsigned long)a4);
 	}
 #endif
