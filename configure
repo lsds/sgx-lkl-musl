@@ -13,10 +13,9 @@ Configuration:
   --srcdir=DIR            source directory [detected]
   --lklheaderdir=DIR      location of exported LKL headers [required]
   --lkllib=.../liblkl.a   location of exported LKL static library [required]
-  --sgxlklheaderdir=DIR   location of SGX-LKL-specific  headers [required]
-  --sgxlkllib=.../sgx.a   location of sgxlklib [required]
-  --cryptsetupheaderdir=DIR location of exported cryptsetup headers [required]
-  --cryptsetuplib=.../misc.a location of exported cryptsetup static library [required]
+  --sgxlklincludes=DIR... location of SGX-LKL-specific headers [required]
+  --sgxlkllib=.../libsgxlkl.a location of sgxlklib [required]
+  --sgxlkllibs=.../libx.a... location of additional libraries [required]
 
 Installation directories:
   --prefix=PREFIX         main installation prefix [/usr/local/musl]
@@ -131,10 +130,9 @@ OPTIMIZE_GLOBS=
 srcdir=
 lklheaderdir=
 lkllib=
-sgxlklheaderdir=
+sgxlklincludes=
 sgxlkllib=
-cryptsetupheaderdir=
-cryptsetuplib=
+sgxlkllibs=
 prefix=/usr/local/musl
 exec_prefix='$(prefix)'
 bindir='$(exec_prefix)/bin'
@@ -162,10 +160,9 @@ case "$arg" in
 --srcdir=*) srcdir=${arg#*=} ;;
 --lklheaderdir=*) lklheaderdir=${arg#*=} ;;
 --lkllib=*) lkllib=${arg#*=} ;;
---sgxlklheaderdir=*) sgxlklheaderdir=${arg#*=} ;;
+--sgxlklincludes=*) sgxlklincludes=${arg#*=} ;;
 --sgxlkllib=*) sgxlkllib=${arg#*=} ;;
---cryptsetupheaderdir=*) cryptsetupheaderdir=${arg#*=} ;;
---cryptsetuplib=*) cryptsetuplib=${arg#*=} ;;
+--sgxlkllibs=*) sgxlkllibs=${arg#*=} ;;
 --prefix=*) prefix=${arg#*=} ;;
 --exec-prefix=*) exec_prefix=${arg#*=} ;;
 --bindir=*) bindir=${arg#*=} ;;
@@ -770,7 +767,7 @@ fi
 if test -z "$lkllib"; then
 	fail "$0: error: LKL static library path required"
 fi
-if test -z "$sgxlklheaderdir"; then
+if test -z "$sgxlklincludes"; then
 	fail "$0: error: SGXLKL header path required"
 fi
 if test -z "$sgxlkllib"; then
@@ -797,10 +794,9 @@ ASMSUBARCH = $ASMSUBARCH
 srcdir = $srcdir
 lklheaderdir = $lklheaderdir
 lkllib = $lkllib
-sgxlklheaderdir = $sgxlklheaderdir
+sgxlklincludes = $sgxlklincludes
 sgxlkllib = $sgxlkllib
-cryptsetupheaderdir = $cryptsetupheaderdir
-cryptsetuplib = $cryptsetuplib
+sgxlkllibs = $sgxlkllibs
 prefix = $prefix
 exec_prefix = $exec_prefix
 bindir = $bindir

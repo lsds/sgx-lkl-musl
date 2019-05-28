@@ -138,9 +138,11 @@ int __clock_gettime(clockid_t clk, struct timespec *ts)
 
 	if (libc.vvar_base && (clk == CLOCK_REALTIME || clk == CLOCK_MONOTONIC ||
 	                       clk == CLOCK_REALTIME_COARSE || clk == CLOCK_MONOTONIC_COARSE)) {
-		volatile struct vsyscall_gtod_data *ptr = (char *)libc.vvar_base + __vsyscall_gtod_data_offset;
+		volatile struct vsyscall_gtod_data *ptr;
 		unsigned seq;
 		uint64_t ns;
+
+                ptr = (struct vsyscall_gtod_data *)((char *)libc.vvar_base + __vsyscall_gtod_data_offset);
 
 //		do {
 			//seq = vdso_read_begin(ptr);

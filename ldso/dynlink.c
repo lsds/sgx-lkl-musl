@@ -21,7 +21,7 @@
 #include "libc.h"
 #include "dynlink.h"
 #include "malloc_impl.h"
-#include "sgx_enclave_config.h"
+#include "sgxlkl_app_config.h"
 #include <sys/prctl.h>
 
 static void error(const char *, ...);
@@ -1720,22 +1720,21 @@ void *__dls2b(size_t *sp)
 //		a_crash();
 //	}
 
-	// We don't call __dls3 here. Once we've got here,
-	// we're safe enough to init LKL, which can then
-	// run stage 3.
+	// We don't call __dls3 here. Once we've got here, we're safe enough to
+	// init LKL, after which we can then run stage 3.
 #ifndef SGXLKL_HW
 	struct symdef sgx_init_def = find_sym(&ldso, "__sgx_init_enclave", 0);
 	if (DL_FDPIC) return &ldso.funcdescs[sgx_init_def.sym-ldso.syms];
 	else return laddr(&ldso, sgx_init_def.sym->st_value);
 #else
-        return 0;
+	return 0;
 #endif
 }
 
 static _Noreturn void __attribute__((optimize("-O0")))
-prepare_stack_and_jmp_to_exec(void *at_entry, char** argv, enclave_config_t *encl, void *tos) {
+prepare_stack_and_jmp_to_exec(void *at_entry, sgxlkl_app_config_t *conf, void *tos) {
 	// Normally, we would use argv as a marker for the top of the
-	// stack, but since argv is embedded within the enclave_config_t
+	// stack, but since argv is embedded within the config
 	// struct in this case we can't do that without writing garbage
 	// over the config.
 
@@ -1749,13 +1748,13 @@ prepare_stack_and_jmp_to_exec(void *at_entry, char** argv, enclave_config_t *enc
 	register char **tosptr;
 	register char **t;
 	register char **base;
-	register char **argvnew = argv;
-	register long argcnew = (long) encl->argc; /* first arg removed - disk image path */
+	register  char **argvnew = conf->argv;
+	register long argcnew = (long) conf->argc;
 	register void *app_entry = at_entry;
 
 	tosptr = (char**)tos;
 
-	base = t = argvnew + encl->argc;
+	base = t = conf->envp;
 	while (*t) { t++; }
 	while (t >= base) {
 		*(tosptr--) = *(t--);
@@ -1778,7 +1777,7 @@ prepare_stack_and_jmp_to_exec(void *at_entry, char** argv, enclave_config_t *enc
  * process dependencies and relocations for the main application and
  * transfer control to its entry point. */
 
-void __dls3(enclave_config_t *encl, void *tos)
+void __dls3(sgxlkl_app_config_t *app_config, void *tos)
 {
 	static struct dso app, vdso;
 	size_t aux[AUX_CNT], *auxv;
@@ -1786,10 +1785,9 @@ void __dls3(enclave_config_t *encl, void *tos)
 	char *env_preload=0;
 	char *replace_argv0=0;
 	size_t vdso_base;
-	int argc = encl->argc;
-	char **argv = encl->argv;
-	char **argv_orig = argv;
-	char **envp = argv+argc+1;
+	int argc = app_config->argc;
+	char **argv = app_config->argv;
+	char **envp = app_config->envp;
 
 	auxv = libc.auxv;
 	decode_vec(auxv, aux, AUX_CNT);
@@ -1941,7 +1939,7 @@ void __dls3(enclave_config_t *encl, void *tos)
 
 	errno = 0;
 
-	prepare_stack_and_jmp_to_exec((void *)aux[AT_ENTRY], argv, encl, tos);
+	prepare_stack_and_jmp_to_exec((void *)aux[AT_ENTRY], app_config, tos);
 }
 
 static void prepare_lazy(struct dso *p)
