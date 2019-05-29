@@ -327,8 +327,26 @@ static int startmain(enclave_config_t *encl) {
             sgxlkl_fail("Remote configuration expected, but no networking available.\n");
         }
 
+        // Start cmd/control servers and wait for application config
         run_cmd_servers(&app_config, encl);
-        // Merge host-provided disk info (fd, capacity, mmap)
+    } else {
+        if (encl->app_config) {
+            char *err_desc;
+            if (parse_sgxlkl_app_config_from_str(encl->app_config, &app_config, &err_desc))
+                sgxlkl_fail("Failed to parse application configuration: %s.\n", err_desc);
+        } else {
+            app_config.argc = encl->argc;
+            app_config.argv = encl->argv;
+            app_config.envp = encl->argv + encl->argc + 1;
+        }
+
+        if (encl->net_fd)
+            run_cmd_servers(NULL, encl);
+    }
+
+    // Disk config has been set through app config
+    // Merge host-provided disk info (fd, capacity, mmap)
+    if (app_config.disks) {
         for (int i = 0; i < app_config.num_disks; i++) {
             enclave_disk_config_t *disk = &app_config.disks[i];
             // Initialize with fd -1 to make sure we don't try to mount disks for
@@ -348,21 +366,8 @@ static int startmain(enclave_config_t *encl) {
                 sgxlkl_warn("Disk image for mount point '%s' has not been provided by host.\n", disk->mnt);
         }
     } else {
-        if (encl->app_config) {
-            char *err_desc;
-            if (parse_sgxlkl_app_config_from_str(encl->app_config, &app_config, &err_desc))
-                sgxlkl_fail("Failed to parse application configuration: %s.\n", err_desc);
-        } else {
-            app_config.argc = encl->argc;
-            app_config.argv = encl->argv;
-            app_config.envp = encl->argv + encl->argc + 1;
-        }
-
         app_config.num_disks = encl->num_disks;
         app_config.disks = encl->disks;
-
-        if (encl->net_fd)
-            run_cmd_servers(NULL, encl);
     }
 
     // Mount disks
