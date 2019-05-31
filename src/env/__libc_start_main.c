@@ -189,19 +189,22 @@ static void run_cmd_servers(sgxlkl_app_config_t *app_config, enclave_config_t *e
 #endif
 
     // Start attest-only server.
-    struct cmd_server_config attest_srv_conf = {0};
-    attest_srv_conf.attest_only = 1;
+
+    // Will be free'd within enclave_cmd_server_run
+    struct cmd_server_config *attest_srv_conf = malloc(sizeof(*attest_srv_conf));
+    memset(attest_srv_conf, 0, sizeof(*attest_srv_conf));
+    attest_srv_conf->attest_only = 1;
 #ifdef SGXLKL_HW
-    attest_srv_conf.att_info = &encl->att_info;
+    attest_srv_conf->att_info = &encl->att_info;
 #endif
-    attest_srv_conf.addr.sin_family = AF_INET;
-    attest_srv_conf.addr.sin_port = htons(encl->remote_attest_port);
-    attest_srv_conf.addr.sin_addr = encl->net_ip4;
+    attest_srv_conf->addr.sin_family = AF_INET;
+    attest_srv_conf->addr.sin_port = htons(encl->remote_attest_port);
+    attest_srv_conf->addr.sin_addr = encl->net_ip4;
 
     SGXLKL_VERBOSE("Starting attestation server, listening on %s:%u...\n",
-                   inet_ntoa(attest_srv_conf.addr.sin_addr),
+                   inet_ntoa(attest_srv_conf->addr.sin_addr),
                    encl->remote_attest_port);
-    if (lthread_create(&lt, NULL, enclave_cmd_server_run, &attest_srv_conf) == -1)
+    if (lthread_create(&lt, NULL, enclave_cmd_server_run, attest_srv_conf) == -1)
         sgxlkl_fail("Failed to created attestation server thread");
 
     // Warn here and return in non-release mode if we can't provide remote
@@ -212,14 +215,17 @@ static void run_cmd_servers(sgxlkl_app_config_t *app_config, enclave_config_t *e
     }
 
     // Start command/control server
-    struct cmd_server_config cmd_srv_conf = {0};
+
+    // Will be free'd within enclave_cmd_server_run
+    struct cmd_server_config *cmd_srv_conf = malloc(sizeof(*cmd_srv_conf));
+    memset(cmd_srv_conf, 0, sizeof(*cmd_srv_conf));
 #ifdef SGXLKL_HW
-    cmd_srv_conf.att_info = &encl->att_info;
+    cmd_srv_conf->att_info = &encl->att_info;
 #endif
-    cmd_srv_conf.app_config = app_config;
-    cmd_srv_conf.addr.sin_family = AF_INET;
-    cmd_srv_conf.addr.sin_port = htons(encl->remote_cmd_port);
-    cmd_srv_conf.addr.sin_addr = eth0_cmd ? encl->net_ip4 : encl->wg->ip;
+    cmd_srv_conf->app_config = app_config;
+    cmd_srv_conf->addr.sin_family = AF_INET;
+    cmd_srv_conf->addr.sin_port = htons(encl->remote_cmd_port);
+    cmd_srv_conf->addr.sin_addr = eth0_cmd ? encl->net_ip4 : encl->wg->ip;
 
     pthread_mutex_t run_mtx;
     pthread_cond_t run_cv;
@@ -232,14 +238,14 @@ static void run_cmd_servers(sgxlkl_app_config_t *app_config, enclave_config_t *e
             exit(EXIT_FAILURE);
         }
 
-        cmd_srv_conf.run_mtx = &run_mtx;
-        cmd_srv_conf.run_cv = &run_cv;
+        cmd_srv_conf->run_mtx = &run_mtx;
+        cmd_srv_conf->run_cv = &run_cv;
     }
 
     SGXLKL_VERBOSE("Starting remote control server, listening on %s:%u...\n",
-                   inet_ntoa(cmd_srv_conf.addr.sin_addr),
+                   inet_ntoa(cmd_srv_conf->addr.sin_addr),
                    encl->remote_cmd_port);
-    if (lthread_create(&lt, NULL, enclave_cmd_server_run, &cmd_srv_conf) == -1) {
+    if (lthread_create(&lt, NULL, enclave_cmd_server_run, cmd_srv_conf) == -1) {
         exit(EXIT_FAILURE);
     }
 
