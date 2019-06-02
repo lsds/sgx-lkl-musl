@@ -19,25 +19,12 @@
 	*(fp) = static_func_ptr; } while(0)
 #endif
 
-void* _dlstart_c(enclave_config_t *encl)
+void* _dlstart_c(size_t base)
 {
 	size_t i, aux[AUX_CNT], dyn[DYN_CNT];
-	size_t *rel, rel_size, base, *dynv, *auxv, *envp;
-
-	auxv = (size_t*) encl->auxv;
-        
+	size_t *rel, rel_size, *dynv;
 	struct fdpic_loadseg *segs, fakeseg;
 	size_t j;
-	for (i=0; i<AUX_CNT; i++) aux[i] = 0;
-	for (i=0; auxv[i]; i+=2) if (auxv[i]<AUX_CNT)
-		aux[auxv[i]] = auxv[i+1];
-
-#ifdef SGXLKL_HW
-	base = (size_t) ((char*) encl->base + encl->heapsize);
-#else
-	base = (size_t) encl->base;
-#endif
-
 
 	// Determine location of dynamic section of the loader. It is equal
 	// to the base address + the virtual address of the dynamic section (as
@@ -76,5 +63,5 @@ void* _dlstart_c(enclave_config_t *encl)
 
 	stage2_func dls2;
 	GETFUNCSYM(&dls2, __dls2, dyn[DT_PLTGOT]);
-	return dls2((void *)base, encl);
+	return dls2((void *)base, NULL);
 }

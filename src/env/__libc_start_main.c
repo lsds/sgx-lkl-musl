@@ -44,7 +44,7 @@ extern void init_sysconf(long nproc_conf, long nproc_onln);
 _Noreturn void __dls3(sgxlkl_app_config_t *conf, void *tos);
 
 #ifdef SGXLKL_HW
-extern void* _dlstart_c(enclave_config_t *encl);
+extern void* _dlstart_c(size_t base);
 
 void init_dso(char* base);
 void reloc_all();
@@ -148,7 +148,6 @@ static void libc_start_init(void)
     uintptr_t a = (uintptr_t)&__init_array_start;
     for (; a<(uintptr_t)&__init_array_end; a+=sizeof(void(*)()))
         (*(void (**)(void))a)();
-
 }
 
 weak_alias(libc_start_init, __libc_start_init);
@@ -180,11 +179,11 @@ static void run_cmd_servers(sgxlkl_app_config_t *app_config, enclave_config_t *e
  */
 #ifdef SGXLKL_RELEASE
     int eth0_cmd = 0;
-    if (encl->wg->num_peers != 1)
+    if (encl->wg.num_peers != 1)
         sgxlkl_fail("Exactly one Wireguard peer needs to be specified in order to provide application run configuration remotely.\n");
 #else
     int eth0_cmd = encl->remote_cmd_eth0;
-    if (!eth0_cmd && encl->remote_config && encl->wg->num_peers == 0)
+    if (!eth0_cmd && encl->remote_config && encl->wg.num_peers == 0)
         sgxlkl_fail("At least one Wireguard peer needs to be specified in order to provide application run configuration remotely.\n");
 #endif
 
@@ -195,7 +194,7 @@ static void run_cmd_servers(sgxlkl_app_config_t *app_config, enclave_config_t *e
     memset(attest_srv_conf, 0, sizeof(*attest_srv_conf));
     attest_srv_conf->attest_only = 1;
 #ifdef SGXLKL_HW
-    attest_srv_conf->att_info = &encl->att_info;
+    attest_srv_conf->att_info = encl->att_info;
 #endif
     attest_srv_conf->addr.sin_family = AF_INET;
     attest_srv_conf->addr.sin_port = htons(encl->remote_attest_port);
@@ -209,7 +208,7 @@ static void run_cmd_servers(sgxlkl_app_config_t *app_config, enclave_config_t *e
 
     // Warn here and return in non-release mode if we can't provide remote
     // control interface.
-    if (!eth0_cmd && encl->wg->num_peers < 1) {
+    if (!eth0_cmd && encl->wg.num_peers < 1) {
         SGXLKL_VERBOSE("No Wireguard peers specified. Remote control will be unavailable.\n");
         return;
     }
@@ -220,12 +219,12 @@ static void run_cmd_servers(sgxlkl_app_config_t *app_config, enclave_config_t *e
     struct cmd_server_config *cmd_srv_conf = malloc(sizeof(*cmd_srv_conf));
     memset(cmd_srv_conf, 0, sizeof(*cmd_srv_conf));
 #ifdef SGXLKL_HW
-    cmd_srv_conf->att_info = &encl->att_info;
+    cmd_srv_conf->att_info = encl->att_info;
 #endif
     cmd_srv_conf->app_config = app_config;
     cmd_srv_conf->addr.sin_family = AF_INET;
     cmd_srv_conf->addr.sin_port = htons(encl->remote_cmd_port);
-    cmd_srv_conf->addr.sin_addr = eth0_cmd ? encl->net_ip4 : encl->wg->ip;
+    cmd_srv_conf->addr.sin_addr = eth0_cmd ? encl->net_ip4 : encl->wg.ip;
 
     pthread_mutex_t run_mtx;
     pthread_cond_t run_cv;
@@ -257,6 +256,10 @@ static void run_cmd_servers(sgxlkl_app_config_t *app_config, enclave_config_t *e
         pthread_cond_wait(&run_cv, &run_mtx);
         __environ = app_config->envp;
     }
+
+#ifdef SGXLKL_HW
+    enclave_config_free(encl);
+#endif
 }
 
 static int __libc_state = 0;
@@ -316,7 +319,20 @@ static int startmain(enclave_config_t *encl) {
         data.nonce = encl->report_nonce;
 
         enclave_report(encl->quote_target_info, (sgx_report_data_t*) &data, encl->report);
-        leave_enclave(SGXLKL_EXIT_REPORT, (uint64_t) &encl->report);
+        leave_enclave(SGXLKL_EXIT_REPORT, (uint64_t) encl->report);
+
+        // encl->att_info is pointer to untrusted outside memory
+        // Copy attestation info into enclave
+        attestation_info_t *att_info;
+        if (!(att_info = malloc(sizeof(*att_info))))
+            sgxlkl_fail("Failed to copy attestation into enclave: %s\n", strerror(errno));
+        *att_info = *encl->att_info;
+        // Ensure quote and IAS report pointers point to outside memory
+        if (att_info->quote && in_enclave_range(att_info->quote, sizeof(*att_info->quote)))
+            sgxlkl_fail("iAttestation error: Quote points into enclave memory. Exiting.\n");
+        if (att_info->ias_report && in_enclave_range(att_info->ias_report, sizeof(*att_info->ias_report)))
+            sgxlkl_fail("iAttestation error: IAS report points into enclave memory. Exiting.\n");
+        encl->att_info = att_info;
     }
 #endif
 
@@ -393,24 +409,46 @@ static int startmain(enclave_config_t *encl) {
     __dls3(&app_config, __builtin_frame_address(0));
 }
 
-/* 1 - initialization in progress, 2 - initialized */
-int __libc_init_enclave(int argc, char **argv, enclave_config_t *encl)
+int __libc_init_enclave(int argc, char **argv, enclave_config_t *_encl)
 {
     struct lthread *lt;
-    libc.vvar_base = encl->vvar;
-    libc.user_tls_enabled = encl->mode == SGXLKL_HW_MODE ? encl->fsgsbase : 1;
+    char **envp = argv + argc + 1;
+
+#ifdef SGXLKL_HW
+    void *heap = (void *)get_enclave_parms()->heap;
+    size_t heap_size = get_enclave_parms()->heap_size;
+#else
+    void *heap = _encl->heap;
+    size_t heap_size = _encl->heapsize;
+#endif
+
 #ifndef SGXLKL_HW
     int c;
+    /* 1 - initialization in progress, 2 - initialized */
     while ((c = a_cas(&__libc_state, 0, 1)) == 1) {a_spin();}
     if (c == 2) {
         __init_tls();
-        _lthread_sched_init(encl->stacksize);
+        _lthread_sched_init(_encl->stacksize);
         lthread_run();
         return 0;
     }
 #endif
-    char **envp = argv + argc + 1;
-    enclave_mman_init(encl->heap, encl->heapsize / PAGESIZE, encl->mmap_files);
+    enclave_mman_init(heap, heap_size / PAGESIZE, _encl->mmap_files);
+
+#ifdef SGXLKL_HW
+    // Create an in-memory copy of the enclave config (to prevent potential
+    // TOCTOU vulnerabilities and check for out-of-range pointers (i.e.
+    // pointers into enclave memory).
+    //
+    // enclave_copy_and_check requires malloc which requires the memory
+    // management to have been set up. Call after enclave_mman_init.
+    enclave_config_t *encl = enclave_config_copy_and_check(_encl);
+#else
+    enclave_config_t *encl = _encl;
+#endif
+
+    libc.vvar_base = encl->vvar;
+    libc.user_tls_enabled = encl->mode == SGXLKL_HW_MODE ? encl->fsgsbase : 1;
 
     init_sysconf(encl->sysconf_nproc_conf, encl->sysconf_nproc_onln);
 
@@ -419,8 +457,8 @@ int __libc_init_enclave(int argc, char **argv, enclave_config_t *encl)
 
     newmpmcq(&__scheduler_queue, max_lthreads, 0);
 
-    __syscall_queue = &encl->syscallq;
-    __return_queue = &encl->returnq;
+    __syscall_queue = encl->syscallq;
+    __return_queue = encl->returnq;
 
     hostsyscallclient_init(encl);
 
@@ -486,11 +524,15 @@ static int libc_start_main_stage2(int (*main)(int,char **,char **), int argc, ch
 #ifdef SGXLKL_HW
 int __sgx_lkl_start_main(enclave_config_t *encl)
 {
-    encl->base = (void*)get_enclave_parms()->base;
-    encl->heap = (void*)get_enclave_parms()->heap;
-    encl->heapsize = get_enclave_parms()->heap_size;
 
-    _dlstart_c(encl);
+#ifdef SGXLKL_HW
+    size_t base = (size_t) get_enclave_parms()->base
+                         + get_enclave_parms()->heap_size;
+#else
+    size_t base = (size_t) encl->base;
+#endif
+
+    _dlstart_c(base);
 
     __libc_init_enclave(encl->argc, encl->argv, encl);
     return 0;
@@ -501,6 +543,7 @@ void __sgx_lkl_entry(uint64_t call_id, void* arg) {
     switch (call_id) {
         case SGXLKL_ENTER_THREAD_CREATE: {
             int c;
+            /* 1 - initialization in progress, 2 - initialized */
             while ((c = a_cas(&__libc_state, 0, 1)) == 1) {a_spin();}
             if (c == 2) {
                 __init_tls();
