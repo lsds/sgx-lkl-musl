@@ -451,6 +451,7 @@ int __libc_init_enclave(int argc, char **argv, enclave_config_t *_encl)
     libc.user_tls_enabled = encl->mode == SGXLKL_HW_MODE ? encl->fsgsbase : 1;
 
     init_sysconf(encl->sysconf_nproc_conf, encl->sysconf_nproc_onln);
+    init_clock_res(encl->clock_res);
 
     size_t max_lthreads = encl->max_user_threads * sizeof(*__scheduler_queue.buffer);
     max_lthreads = next_pow2(max_lthreads);

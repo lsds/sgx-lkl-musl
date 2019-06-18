@@ -104,6 +104,10 @@ int clock_settime (clockid_t, const struct timespec *);
 int clock_nanosleep (clockid_t, int, const struct timespec *, struct timespec *);
 int clock_getcpuclockid (pid_t, clockid_t *);
 
+/* Used by SGX-LKL for providing clock resolutions at startup to make host call
+ * unnecessary. */
+void init_clock_res(struct timespec clock_res[]);
+
 struct sigevent;
 int timer_create (clockid_t, struct sigevent *__restrict, timer_t *__restrict);
 int timer_delete (timer_t);
