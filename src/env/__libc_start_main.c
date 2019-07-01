@@ -337,7 +337,7 @@ static int startmain(enclave_config_t *encl) {
 #endif
 
     // Start control server and initialize app config (argc, argv, envp).
-    sgxlkl_app_config_t app_config;
+    sgxlkl_app_config_t app_config = {};
 #ifndef SGXLKL_RELEASE
     if (encl->remote_config) {
 # else
