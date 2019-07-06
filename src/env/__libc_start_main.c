@@ -360,6 +360,7 @@ static int startmain(enclave_config_t *encl) {
             app_config.argc = encl->argc;
             app_config.argv = encl->argv;
             app_config.envp = encl->argv + encl->argc + 1;
+            app_config.cwd = encl->cwd;
         }
 
         if (encl->net_fd)
@@ -393,7 +394,7 @@ static int startmain(enclave_config_t *encl) {
     }
 
     // Mount disks
-    lkl_mount_disks(app_config.disks, app_config.num_disks);
+    lkl_mount_disks(app_config.disks, app_config.num_disks, app_config.cwd);
 
     // Add Wireguard peers
     if (wg_dev) {
