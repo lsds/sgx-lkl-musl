@@ -42,9 +42,6 @@ void* _dlstart_c(size_t base)
 	for (i=0; dynv[i]; i+=2) if (dynv[i]<DYN_CNT)
 		dyn[dynv[i]] = dynv[i+1];
 
-    //Temporary: Set base to 0 to compute rel/rela offsets correctly.
-    //base = 0;
-
 	rel = (void *)(base+dyn[DT_REL]);
 	rel_size = dyn[DT_RELSZ];
 	for (; rel_size; rel+=2, rel_size-=2*sizeof(size_t)) {

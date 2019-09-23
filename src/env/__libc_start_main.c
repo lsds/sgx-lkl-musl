@@ -381,6 +381,7 @@ static int startmain(enclave_config_t *encl) {
                     disk->fd = disk_untrusted->fd;
                     disk->capacity = disk_untrusted->capacity;
                     disk->mmap = disk_untrusted->mmap;
+                    disk->wait_on_io = encl->wait_on_io_host_calls;
                     break;
                 }
             }
