@@ -435,7 +435,7 @@ int __libc_init_enclave(int argc, char **argv, enclave_config_t *_encl)
         return 0;
     }
 #endif
-    enclave_mman_init(heap, heap_size / PAGESIZE, _encl->mmap_files);
+    enclave_mman_init(heap, heap_size / PAGESIZE, !_encl->use_x86_acc, _encl->mmap_files);
 
 #ifdef SGXLKL_HW
     // Create an in-memory copy of the enclave config (to prevent potential
@@ -527,13 +527,11 @@ static int libc_start_main_stage2(int (*main)(int,char **,char **), int argc, ch
 #ifdef SGXLKL_HW
 int __sgx_lkl_start_main(enclave_config_t *encl)
 {
-
-#ifdef SGXLKL_HW
-    size_t base = (size_t) get_enclave_parms()->base
-                         + get_enclave_parms()->heap_size;
-#else
-    size_t base = (size_t) encl->base;
-#endif
+    size_t base = (size_t) get_enclave_parms()->base + 4096 /* Null page */;
+    // Under some circumstances the heap is mapped before libsgxlkl.so. Add
+    // heap size to offset if necessary.
+    if ((size_t) get_enclave_parms()->heap - (size_t) get_enclave_parms()->base == 4096)
+        base += get_enclave_parms()->heap_size;
 
     _dlstart_c(base);
 
