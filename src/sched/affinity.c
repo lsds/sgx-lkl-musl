@@ -22,10 +22,10 @@ int pthread_setaffinity_np(pthread_t td, size_t size, const cpu_set_t *set)
 
 static int do_getaffinity(pid_t tid, size_t size, cpu_set_t *set)
 {
-	CPU_ZERO(set);
+	CPU_ZERO_S(size, set);
 	long nproc = sysconf(_SC_NPROCESSORS_ONLN);
 	for (int i = 0; i < nproc; i++) {
-		CPU_SET(i, set);
+		CPU_SET_S(i, size, set);
 	}
 
 	return 0;

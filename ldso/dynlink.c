@@ -529,7 +529,7 @@ static void *mmap_fixed(void *p, size_t n, int prot, int flags, int fd, off_t of
 {
 	char *q;
 
-#if !defined(SGXLKL_HW) && defined(DEBUG)
+#if !defined(SGXLKL_HW) && defined(DEBUGMOUNT)
 	// If SGXLKL_DEBUGMOUNT is specified do a file-backed mapping from the
 	// debug moutn over the already allocated region.  This allows perf to
 	// resolve symbols of applications and shared libraries loaded from the
@@ -564,7 +564,7 @@ static void *mmap_fixed(void *p, size_t n, int prot, int flags, int fd, off_t of
 			return q;
 		fprintf(stderr, "[SGX-LKL] Failed to map anonymous host memory: %s\n", strerror(errno));
 	}
-#endif /* !SGXLKL_HW && DEBUG */
+#endif /* !SGXLKL_HW && DEBUGMOUNT */
 
 	/* Fallbacks for MAP_FIXED failure on NOMMU kernels. */
 	if (flags & MAP_ANONYMOUS) {

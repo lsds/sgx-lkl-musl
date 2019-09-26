@@ -42,7 +42,7 @@ o += '\t}\n';
 o += '\tabort();\n';
 console.log(o);
 */
-static const short syscall_remap_len = 331;
+static const short syscall_remap_len = 332;
 static const short syscall_remap[] = {
 	63, /* read - x86-64 syscall: 0 */
 	64, /* write - x86-64 syscall: 1 */
@@ -376,6 +376,7 @@ static const short syscall_remap[] = {
 	288, /* pkey_mprotect - x86-64 syscall: 329 */
 	289, /* pkey_alloc - x86-64 syscall: 330 */
 	290, /* pkey_free - x86-64 syscall: 331 */
+	291, /* statx - x86-64 syscall: 332 */
 };
 
 
@@ -726,6 +727,7 @@ long syscall(long n, ...)
 	case 316:
 	case 320:
 	case 322:
+	case 332:
 		return __syscall_ret(__syscall(calln,a,b,c,d,e));
 	case 9:
 	case 44:

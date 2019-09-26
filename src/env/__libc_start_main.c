@@ -337,7 +337,7 @@ static int startmain(enclave_config_t *encl) {
 #endif
 
     // Start control server and initialize app config (argc, argv, envp).
-    sgxlkl_app_config_t app_config;
+    sgxlkl_app_config_t app_config = {};
 #ifndef SGXLKL_RELEASE
     if (encl->remote_config) {
 # else
@@ -360,6 +360,7 @@ static int startmain(enclave_config_t *encl) {
             app_config.argc = encl->argc;
             app_config.argv = encl->argv;
             app_config.envp = encl->argv + encl->argc + 1;
+            app_config.cwd = encl->cwd;
         }
 
         if (encl->net_fd)
@@ -380,6 +381,7 @@ static int startmain(enclave_config_t *encl) {
                     disk->fd = disk_untrusted->fd;
                     disk->capacity = disk_untrusted->capacity;
                     disk->mmap = disk_untrusted->mmap;
+                    disk->wait_on_io = encl->wait_on_io_host_calls;
                     break;
                 }
             }
@@ -393,7 +395,7 @@ static int startmain(enclave_config_t *encl) {
     }
 
     // Mount disks
-    lkl_mount_disks(app_config.disks, app_config.num_disks);
+    lkl_mount_disks(app_config.disks, app_config.num_disks, app_config.cwd);
 
     // Add Wireguard peers
     if (wg_dev) {
