@@ -13,6 +13,7 @@
 #include "enclave_mem.h"
 #include "sgx_hostcalls.h"
 #include "sgxlkl_debug.h"
+#include "enclave/sgxlkl_t.h"
 #include "lkl.h"
 
 #ifndef SYSCALL_RLIM_INFINITY
@@ -171,6 +172,7 @@ static inline long __filter_syscall3(long n, long a1, long a2, long a3) {
 	if (not_implemented(n)) return -ENOSYS;
 
 	long params[6] = {0};
+	int ret_val = -1;
 
 	if (n == SYS_writev && (a1 == STDOUT_FILENO || a1 == STDERR_FILENO)) {
 		return (long)host_syscall_SYS_writev((int)a1, (const struct iovec*)a2, (int)a3);
@@ -185,7 +187,12 @@ static inline long __filter_syscall3(long n, long a1, long a2, long a3) {
 	} else if (n == SYS_msync) {
 		return (long)syscall_SYS_msync((void*)a1, (size_t)a2, (int)a3);
 	} else if (n == SYS_mprotect) {
-		return (long)host_syscall_SYS_mprotect((void*)a1, (size_t)a2, (int)a3);
+		oe_result_t result = sgxlkl_host_syscall_mprotect(&ret_val, (void*)a1, (size_t)a2, (int)a3);
+		if (result != OE_OK) {
+			return -1;
+		} else {
+			return (long)ret_val;
+		}
 	} else {
 		params[0] = a1;
 		params[1] = a2;
