@@ -91,11 +91,11 @@ static size_t *init_aux(size_t *auxv_base) {
     memset(auxv, 0, 24 * sizeof(*auxv));
     auxv[0]  = AT_CLKTCK;   auxv[1]  = 100;
     auxv[2]  = AT_EXECFN;   auxv[3]  = (size_t) "";
-    auxv[4]  = AT_HWCAP;    auxv[5]  = auxv_base[AT_HWCAP];
+    auxv[4]  = AT_HWCAP;    auxv[5]  = aux_base[AT_HWCAP];
     auxv[6]  = AT_EGID;     auxv[7]  = 0;
     auxv[8]  = AT_EUID;     auxv[9]  = 0;
     auxv[10] = AT_GID;      auxv[11] = 0;
-    auxv[12] = AT_PAGESZ;   auxv[13] = auxv_base[AT_PAGESZ];
+    auxv[12] = AT_PAGESZ;   auxv[13] = aux_base[AT_PAGESZ];
     auxv[14] = AT_PLATFORM; auxv[15] = (size_t) "x86_64";
     auxv[16] = AT_SECURE;   auxv[17] = 0;
     auxv[18] = AT_UID;      auxv[19] = 0;
