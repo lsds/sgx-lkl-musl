@@ -70,7 +70,7 @@ struct lkl_host_operations sgxlkl_host_ops;
 __attribute__((__noinline__))
 #endif
 
-static size_t *init_aux(size_t *auxv_base) {
+static size_t *init_aux(size_t *auxv_base, char *pn) {
     size_t i, aux_base[AUX_CNT] = { 0 };
     for (i = 0; auxv_base[i]; i += 2)
         if (auxv_base[i] < AUX_CNT)
@@ -90,7 +90,7 @@ static size_t *init_aux(size_t *auxv_base) {
     size_t *auxv = malloc(24 * sizeof(*auxv));
     memset(auxv, 0, 24 * sizeof(*auxv));
     auxv[0]  = AT_CLKTCK;   auxv[1]  = 100;
-    auxv[2]  = AT_EXECFN;   auxv[3]  = (size_t) "";
+    auxv[2]  = AT_EXECFN;   auxv[3]  = (size_t) (pn ? pn : "");
     auxv[4]  = AT_HWCAP;    auxv[5]  = aux_base[AT_HWCAP];
     auxv[6]  = AT_EGID;     auxv[7]  = 0;
     auxv[8]  = AT_EUID;     auxv[9]  = 0;
@@ -111,7 +111,7 @@ void __init_libc(char **envp, char *pn, enclave_config_t *encl)
     size_t i, *auxv, aux[AUX_CNT] = { 0 };
     __environ = envp;
     for (i=0; envp[i]; i++);
-    libc.auxv = auxv = init_aux((void *)(envp+i+1));
+    libc.auxv = auxv = init_aux((void *)(envp+i+1), pn);
     for (i=0; auxv[i]; i+=2) if (auxv[i]<AUX_CNT) aux[auxv[i]] = auxv[i+1];
     __hwcap = aux[AT_HWCAP];
     __sysinfo = aux[AT_SYSINFO];
