@@ -2,6 +2,7 @@
 #include <unistd.h>
 #include "syscall.h"
 #include <stdarg.h>
+#include <assert.h>
 
 #undef syscall
 
@@ -46,14 +47,14 @@ static const short syscall_remap_len = 332;
 static const short syscall_remap[] = {
 	63, /* read - x86-64 syscall: 0 */
 	64, /* write - x86-64 syscall: 1 */
-	1024, /* open - x86-64 syscall: 2 */
+	-1, /* not implemented in x86-64 */
 	57, /* close - x86-64 syscall: 3 */
-	1049, /* stat - x86-64 syscall: 4 */
-	1051, /* fstat - x86-64 syscall: 5 */
-	1050, /* lstat - x86-64 syscall: 6 */
-	1068, /* poll - x86-64 syscall: 7 */
-	1057, /* lseek - x86-64 syscall: 8 */
-	1058, /* mmap - x86-64 syscall: 9 */
+	-1, /* not implemented in x86-64 */
+	80, /* fstat - x86-64 syscall: 5 */
+	-1, /* not implemented in x86-64 */
+	-1, /* not implemented in x86-64 */
+	62, /* lseek - x86-64 syscall: 8 */
+	222, /* mmap - x86-64 syscall: 9 */
 	226, /* mprotect - x86-64 syscall: 10 */
 	215, /* munmap - x86-64 syscall: 11 */
 	214, /* brk - x86-64 syscall: 12 */
@@ -65,9 +66,9 @@ static const short syscall_remap[] = {
 	68, /* pwrite64 - x86-64 syscall: 18 */
 	65, /* readv - x86-64 syscall: 19 */
 	66, /* writev - x86-64 syscall: 20 */
-	1033, /* access - x86-64 syscall: 21 */
-	1040, /* pipe - x86-64 syscall: 22 */
-	1067, /* select - x86-64 syscall: 23 */
+	-1, /* not implemented in x86-64 */
+	-1, /* not implemented in x86-64 */
+	-1, /* not implemented in x86-64 */
 	124, /* sched_yield - x86-64 syscall: 24 */
 	216, /* mremap - x86-64 syscall: 25 */
 	227, /* msync - x86-64 syscall: 26 */
@@ -77,14 +78,14 @@ static const short syscall_remap[] = {
 	196, /* shmat - x86-64 syscall: 30 */
 	195, /* shmctl - x86-64 syscall: 31 */
 	23, /* dup - x86-64 syscall: 32 */
-	1041, /* dup2 - x86-64 syscall: 33 */
-	1061, /* pause - x86-64 syscall: 34 */
+	-1, /* not implemented in x86-64 */
+	-1, /* not implemented in x86-64 */
 	101, /* nanosleep - x86-64 syscall: 35 */
 	102, /* getitimer - x86-64 syscall: 36 */
-	1059, /* alarm - x86-64 syscall: 37 */
+	-1, /* not implemented in x86-64 */
 	103, /* setitimer - x86-64 syscall: 38 */
 	172, /* getpid - x86-64 syscall: 39 */
-	1046, /* sendfile - x86-64 syscall: 40 */
+	71, /* sendfile - x86-64 syscall: 40 */
 	198, /* socket - x86-64 syscall: 41 */
 	203, /* connect - x86-64 syscall: 42 */
 	202, /* accept - x86-64 syscall: 43 */
@@ -101,8 +102,8 @@ static const short syscall_remap[] = {
 	208, /* setsockopt - x86-64 syscall: 54 */
 	209, /* getsockopt - x86-64 syscall: 55 */
 	220, /* clone - x86-64 syscall: 56 */
-	1079, /* fork - x86-64 syscall: 57 */
-	1071, /* vfork - x86-64 syscall: 58 */
+	-1, /* not implemented in x86-64 */
+	-1, /* not implemented in x86-64 */
 	221, /* execve - x86-64 syscall: 59 */
 	93, /* exit - x86-64 syscall: 60 */
 	260, /* wait4 - x86-64 syscall: 61 */
@@ -116,29 +117,29 @@ static const short syscall_remap[] = {
 	189, /* msgsnd - x86-64 syscall: 69 */
 	188, /* msgrcv - x86-64 syscall: 70 */
 	187, /* msgctl - x86-64 syscall: 71 */
-	1052, /* fcntl - x86-64 syscall: 72 */
+	25, /* fcntl - x86-64 syscall: 72 */
 	32, /* flock - x86-64 syscall: 73 */
 	82, /* fsync - x86-64 syscall: 74 */
 	83, /* fdatasync - x86-64 syscall: 75 */
-	1048, /* truncate - x86-64 syscall: 76 */
-	1047, /* ftruncate - x86-64 syscall: 77 */
-	1065, /* getdents - x86-64 syscall: 78 */
+	45, /* truncate - x86-64 syscall: 76 */
+	46, /* ftruncate - x86-64 syscall: 77 */
+	-1, /* not implemented in x86-64 */
 	17, /* getcwd - x86-64 syscall: 79 */
 	49, /* chdir - x86-64 syscall: 80 */
 	50, /* fchdir - x86-64 syscall: 81 */
-	1034, /* rename - x86-64 syscall: 82 */
-	1030, /* mkdir - x86-64 syscall: 83 */
-	1031, /* rmdir - x86-64 syscall: 84 */
-	1064, /* creat - x86-64 syscall: 85 */
-	1025, /* link - x86-64 syscall: 86 */
-	1026, /* unlink - x86-64 syscall: 87 */
-	1036, /* symlink - x86-64 syscall: 88 */
-	1035, /* readlink - x86-64 syscall: 89 */
-	1028, /* chmod - x86-64 syscall: 90 */
+	-1, /* not implemented in x86-64 */
+	-1, /* not implemented in x86-64 */
+	-1, /* not implemented in x86-64 */
+	-1, /* not implemented in x86-64 */
+	-1, /* not implemented in x86-64 */
+	-1, /* not implemented in x86-64 */
+	-1, /* not implemented in x86-64 */
+	-1, /* not implemented in x86-64 */
+	-1, /* not implemented in x86-64 */
 	52, /* fchmod - x86-64 syscall: 91 */
-	1029, /* chown - x86-64 syscall: 92 */
+	-1, /* not implemented in x86-64 */
 	55, /* fchown - x86-64 syscall: 93 */
-	1032, /* lchown - x86-64 syscall: 94 */
+	-1, /* not implemented in x86-64 */
 	166, /* umask - x86-64 syscall: 95 */
 	169, /* gettimeofday - x86-64 syscall: 96 */
 	163, /* getrlimit - x86-64 syscall: 97 */
@@ -155,7 +156,7 @@ static const short syscall_remap[] = {
 	177, /* getegid - x86-64 syscall: 108 */
 	154, /* setpgid - x86-64 syscall: 109 */
 	173, /* getppid - x86-64 syscall: 110 */
-	1060, /* getpgrp - x86-64 syscall: 111 */
+	-1, /* not implemented in x86-64 */
 	157, /* setsid - x86-64 syscall: 112 */
 	145, /* setreuid - x86-64 syscall: 113 */
 	143, /* setregid - x86-64 syscall: 114 */
@@ -176,13 +177,13 @@ static const short syscall_remap[] = {
 	138, /* rt_sigqueueinfo - x86-64 syscall: 129 */
 	133, /* rt_sigsuspend - x86-64 syscall: 130 */
 	132, /* sigaltstack - x86-64 syscall: 131 */
-	1063, /* utime - x86-64 syscall: 132 */
-	1027, /* mknod - x86-64 syscall: 133 */
-	1077, /* uselib - x86-64 syscall: 134 */
+	-1, /* not implemented in x86-64 */
+	-1, /* not implemented in x86-64 */
+	-1, /* not implemented in x86-64 */
 	92, /* personality - x86-64 syscall: 135 */
-	1070, /* ustat - x86-64 syscall: 136 */
-	1056, /* statfs - x86-64 syscall: 137 */
-	1055, /* fstatfs - x86-64 syscall: 138 */
+	-1, /* not implemented in x86-64 */
+	43, /* statfs - x86-64 syscall: 137 */
+	44, /* fstatfs - x86-64 syscall: 138 */
 	-1, /* not implemented in x86-64 */
 	141, /* getpriority - x86-64 syscall: 140 */
 	140, /* setpriority - x86-64 syscall: 141 */
@@ -200,7 +201,7 @@ static const short syscall_remap[] = {
 	58, /* vhangup - x86-64 syscall: 153 */
 	-1, /* not implemented in x86-64 */
 	41, /* pivot_root - x86-64 syscall: 155 */
-	1078, /* _sysctl - x86-64 syscall: 156 */
+	-1, /* not implemented in x86-64 */
 	167, /* prctl - x86-64 syscall: 157 */
 	-1, /* not implemented in x86-64 */
 	171, /* adjtimex - x86-64 syscall: 159 */
@@ -245,7 +246,7 @@ static const short syscall_remap[] = {
 	15, /* lremovexattr - x86-64 syscall: 198 */
 	16, /* fremovexattr - x86-64 syscall: 199 */
 	130, /* tkill - x86-64 syscall: 200 */
-	1062, /* time - x86-64 syscall: 201 */
+	-1, /* not implemented in x86-64 */
 	98, /* futex - x86-64 syscall: 202 */
 	122, /* sched_setaffinity - x86-64 syscall: 203 */
 	123, /* sched_getaffinity - x86-64 syscall: 204 */
@@ -257,7 +258,7 @@ static const short syscall_remap[] = {
 	3, /* io_cancel - x86-64 syscall: 210 */
 	-1, /* not implemented in x86-64 */
 	18, /* lookup_dcookie - x86-64 syscall: 212 */
-	1042, /* epoll_create - x86-64 syscall: 213 */
+	-1, /* not implemented in x86-64 */
 	-1, /* not implemented in x86-64 */
 	-1, /* not implemented in x86-64 */
 	234, /* remap_file_pages - x86-64 syscall: 216 */
@@ -265,7 +266,7 @@ static const short syscall_remap[] = {
 	96, /* set_tid_address - x86-64 syscall: 218 */
 	128, /* restart_syscall - x86-64 syscall: 219 */
 	192, /* semtimedop - x86-64 syscall: 220 */
-	1053, /* fadvise64 - x86-64 syscall: 221 */
+	223, /* fadvise64 - x86-64 syscall: 221 */
 	107, /* timer_create - x86-64 syscall: 222 */
 	110, /* timer_settime - x86-64 syscall: 223 */
 	108, /* timer_gettime - x86-64 syscall: 224 */
@@ -276,10 +277,10 @@ static const short syscall_remap[] = {
 	114, /* clock_getres - x86-64 syscall: 229 */
 	115, /* clock_nanosleep - x86-64 syscall: 230 */
 	94, /* exit_group - x86-64 syscall: 231 */
-	1069, /* epoll_wait - x86-64 syscall: 232 */
+	-1, /* not implemented in x86-64 */
 	21, /* epoll_ctl - x86-64 syscall: 233 */
 	131, /* tgkill - x86-64 syscall: 234 */
-	1037, /* utimes - x86-64 syscall: 235 */
+	-1, /* not implemented in x86-64 */
 	-1, /* not implemented in x86-64 */
 	235, /* mbind - x86-64 syscall: 237 */
 	237, /* set_mempolicy - x86-64 syscall: 238 */
@@ -297,7 +298,7 @@ static const short syscall_remap[] = {
 	219, /* keyctl - x86-64 syscall: 250 */
 	30, /* ioprio_set - x86-64 syscall: 251 */
 	31, /* ioprio_get - x86-64 syscall: 252 */
-	1043, /* inotify_init - x86-64 syscall: 253 */
+	-1, /* not implemented in x86-64 */
 	27, /* inotify_add_watch - x86-64 syscall: 254 */
 	28, /* inotify_rm_watch - x86-64 syscall: 255 */
 	238, /* migrate_pages - x86-64 syscall: 256 */
@@ -305,8 +306,8 @@ static const short syscall_remap[] = {
 	34, /* mkdirat - x86-64 syscall: 258 */
 	33, /* mknodat - x86-64 syscall: 259 */
 	54, /* fchownat - x86-64 syscall: 260 */
-	1066, /* futimesat - x86-64 syscall: 261 */
-	1054, /* newfstatat - x86-64 syscall: 262 */
+	-1, /* not implemented in x86-64 */
+	79, /* newfstatat - x86-64 syscall: 262 */
 	35, /* unlinkat - x86-64 syscall: 263 */
 	38, /* renameat - x86-64 syscall: 264 */
 	37, /* linkat - x86-64 syscall: 265 */
@@ -326,9 +327,9 @@ static const short syscall_remap[] = {
 	239, /* move_pages - x86-64 syscall: 279 */
 	88, /* utimensat - x86-64 syscall: 280 */
 	22, /* epoll_pwait - x86-64 syscall: 281 */
-	1045, /* signalfd - x86-64 syscall: 282 */
+	-1, /* not implemented in x86-64 */
 	85, /* timerfd_create - x86-64 syscall: 283 */
-	1044, /* eventfd - x86-64 syscall: 284 */
+	-1, /* not implemented in x86-64 */
 	47, /* fallocate - x86-64 syscall: 285 */
 	86, /* timerfd_settime - x86-64 syscall: 286 */
 	87, /* timerfd_gettime - x86-64 syscall: 287 */
@@ -379,6 +380,36 @@ static const short syscall_remap[] = {
 	291, /* statx - x86-64 syscall: 332 */
 };
 
+static long redirect_syscall(long n,
+	syscall_arg_t a, syscall_arg_t b, syscall_arg_t c, syscall_arg_t d, syscall_arg_t e, syscall_arg_t f)
+{
+	assert(syscall_remap[n] == -1);
+
+	int params_len = 0;
+	int res = -1;
+	errno = ENOSYS;
+
+	/*
+	Here we redirect x64 syscalls that have no direct mapping onto LKL syscalls.
+	When adding a syscall below, preferably call the corresponding libc wrapper function,
+	but verify that it behaves identically or at least "similar enough" to the raw syscall.
+	*/
+
+	switch (n) {
+	case 33 /*SYS_dup2*/:
+		// dup2() is not exactly like syscall(SYS_dup2, ...) because
+		// it retries on EBUSY, but this is probably fine.
+		params_len = 2;
+		res = dup2(a, b);
+		break;
+	default:
+		fprintf(stderr, "SGX-MUSL-LKL WARN: x86-64 syscall %d has no known mapping\n", n);
+	}
+
+	log_sgxlkl_syscall(SGXLKL_REDIRECT_SYSCALL, n, res, params_len, a, b, c, d, e, f);
+
+	return res == -1 ? -errno : res;
+}
 
 long syscall(long n, ...)
 {
@@ -400,9 +431,7 @@ long syscall(long n, ...)
 	}
 	long calln = syscall_remap[n];
 	if (calln == -1) {
-		fprintf(stderr, "SGX-MUSL-LKL WARN: x86-64 syscall %d has no known mapping\n", n);
-		errno = ENOSYS;
-		return -ENOSYS;
+		return redirect_syscall(n, a, b, c, d, e, f);
 	}
 
 	/* AUTOGENERATED CODE BEGINS BELOW: */
