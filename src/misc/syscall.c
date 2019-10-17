@@ -3,6 +3,7 @@
 #include "syscall.h"
 #include <stdarg.h>
 #include <assert.h>
+#include "sgxlkl_util.h"
 
 #undef syscall
 
@@ -403,12 +404,15 @@ static long redirect_syscall(long n,
 		res = dup2(a, b);
 		break;
 	default:
-		fprintf(stderr, "SGX-MUSL-LKL WARN: x86-64 syscall %d has no known mapping\n", n);
+		sgxlkl_warn("x86-64 syscall %d has no known mapping\n", n);
 	}
+
+	if (res == -1)
+		res = -errno;
 
 	log_sgxlkl_syscall(SGXLKL_REDIRECT_SYSCALL, n, res, params_len, a, b, c, d, e, f);
 
-	return res == -1 ? -errno : res;
+	return res;
 }
 
 long syscall(long n, ...)
@@ -425,7 +429,7 @@ long syscall(long n, ...)
 	va_end(ap);
 
 	if (n > syscall_remap_len) {
-		fprintf(stderr, "SGX-MUSL-LKL WARN: x86-64 syscall %d is greater than known syscall table length %d\n", n, syscall_remap_len);
+		sgxlkl_warn("x86-64 syscall %d is greater than known syscall table length %d\n", n, syscall_remap_len);
 		errno = ENOSYS;
 		return -ENOSYS;
 	}
