@@ -528,12 +528,8 @@ static int libc_start_main_stage2(int (*main)(int,char **,char **), int argc, ch
 int __sgx_lkl_start_main(enclave_config_t *encl)
 {
 
-#ifdef SGXLKL_HW
     size_t base = (size_t) get_enclave_parms()->base
                          + get_enclave_parms()->heap_size;
-#else
-    size_t base = (size_t) encl->base;
-#endif
 
     _dlstart_c(base);
 
