@@ -22,12 +22,21 @@ __asm__(
  * fs:48 - offset of tls from enclave base
  */
 
-//TODO: we need to verify if the ecall is a legit one
-/* exit if cssa > 0 and call id is not SGXLKL_ENTER_HANDLE_SIGNAL */
-//"   cmp %rax,$0\n"
-//"   je __initialize\n"
-//"   cmp %rdi,$1\n"
-//"   jne __unexpected_call\n"
+/* Ensure that ecall is valid:
+  - If cssa is 0, ID must be SGXLKL_ENTER_THREAD_CREATE (0) or.
+    SGXLKL_ENTER_RESUME (1).
+  - If cssa is > 0, ID must be SGXLKL_ENTER_RESUME (1) or
+    SGXLKL_ENTER_HANDLE_SIGNAL (2).
+*/
+"   cmp $0, %rax\n"
+"   je __check_cid_tcreate_or_resume\n"
+"   cmp $2, %rdi\n"
+"   ja __unexpected_call\n"
+"   jmp __initialize\n"
+
+"__check_cid_tcreate_or_resume: \n"
+"   cmp $1, %rdi\n"
+"   ja __unexpected_call\n"
 
 "__initialize: \n"
 /* enclave parms in %rax */
@@ -127,8 +136,8 @@ __asm__(
 "	jmp *%rdx\n"               /* goto saved address without altering rsp */
 
 "__unexpected_call: \n"
-"   movq $3,%rdi\n"
-"   movq $4,%rsi\n"
+"   movq $2,%rdi\n"
+"   movq $1,%rsi\n"
 "   movq %rcx,%rbx\n"
 "   movq $4,%rax\n"
 "   .byte 0x0f \n"
