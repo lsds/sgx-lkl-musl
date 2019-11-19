@@ -254,7 +254,6 @@ static void run_cmd_servers(sgxlkl_app_config_t *app_config, enclave_config_t *e
         if (sgxlkl_verbose)
             SGXLKL_VERBOSE("Waiting for application run request...\n");
         pthread_cond_wait(&run_cv, &run_mtx);
-        __environ = app_config->envp;
     }
 
 #ifdef SGXLKL_HW
@@ -366,6 +365,8 @@ static int startmain(enclave_config_t *encl) {
         if (encl->net_fd)
             run_cmd_servers(NULL, encl);
     }
+
+    __environ = app_config.envp;
 
     // Disk config has been set through app config
     // Merge host-provided disk info (fd, capacity, mmap)
