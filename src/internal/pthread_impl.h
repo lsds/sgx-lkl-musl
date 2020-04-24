@@ -12,7 +12,7 @@
 #include "atomic.h"
 #include "futex.h"
 
-#include "shared/sgxlkl_config.h"
+#include "enclave/sgxlkl_config.h"
 
 #define pthread __pthread
 

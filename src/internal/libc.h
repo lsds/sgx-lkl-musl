@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <limits.h>
 
-#include "shared/sgxlkl_config.h"
+#include "enclave/sgxlkl_config.h"
 
 struct __locale_map;
 
