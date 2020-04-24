@@ -7,7 +7,7 @@
 #include "libc.h"
 #include "atomic.h"
 #include "syscall.h"
-#include "shared/sgxlkl_config.h"
+#include "enclave/sgxlkl_config.h"
 #include "enclave/lthread.h"
 
 static int spawned_ethreads = 1;
