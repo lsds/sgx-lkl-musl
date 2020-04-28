@@ -21,10 +21,14 @@
 #include "libc.h"
 #include "dynlink.h"
 #include "malloc_impl.h"
-#include "sgxlkl_app_config.h"
+#include "enclave/sgxlkl_app_config.h"
 #include <sys/prctl.h>
 
 static void error(const char *, ...);
+
+/* Variable to hold the global variable address. */
+static char **a_optarg;
+static int *a_optind, *a_opterr, *a_optopt, *a__optpos, *a__optreset;
 
 #define MAXP2(a,b) (-(-(a)&-(b)))
 #define ALIGN(x,y) ((x)+(y)-1 & -(y))
@@ -137,6 +141,26 @@ extern hidden void (*const __init_array_end)(void), (*const __fini_array_end)(vo
 
 weak_alias(__init_array_start, __init_array_end);
 weak_alias(__fini_array_start, __fini_array_end);
+
+void dl_copy_global_vars(int *optind, int *opterr, int *optopt, int *optpos, int *optreset)
+{
+	if(a_optind)    *optind = *a_optind;
+	if(a_opterr)    *opterr = *a_opterr;
+	if(a_optopt)    *optopt = *a_optopt;
+	if(a__optpos)   *optpos = *a__optpos;
+	if(a__optreset) *optreset = *a__optreset;
+}
+
+void dl_update_global_vars(int optind, int opterr, int optopt,
+						   int optpos, int optreset, char *optarg)
+{
+	if(a_optind)    *a_optind = optind;
+	if(a_opterr)    *a_opterr = opterr;
+	if(a_optopt)    *a_optopt = optopt;
+	if(a__optpos)   *a__optpos = optpos;
+	if(a__optreset) *a__optreset = optreset;
+	if(a_optarg)    *a_optarg = optarg;
+}
 
 static int dl_strcmp(const char *l, const char *r)
 {
@@ -401,6 +425,15 @@ static void do_relocs(struct dso *dso, size_t *rel, size_t rel_size, size_t stri
 			else *reloc_addr = (size_t)base + addend;
 			break;
 		case REL_COPY:
+			/* libsgxlkl has a limitation of global variables not relocated
+			 * due to the fact that it is compiled as position independent executable
+			 * (-pie). Hence caching the global variables address to update */
+			if(!strcmp(name,"optind"))  a_optind    = (int*)reloc_addr;
+			if(!strcmp(name,"opterr"))  a_opterr    = (int*)reloc_addr;
+			if(!strcmp(name,"optopt"))  a_optopt    = (int*)reloc_addr;
+			if(!strcmp(name,"optpos"))  a__optpos   = (int*)reloc_addr;
+			if(!strcmp(name,"__optreset")) a__optreset = (int*)reloc_addr;
+			if(!strcmp(name,"optarg"))  a_optarg    = (char**)reloc_addr;
 			memcpy(reloc_addr, (void *)sym_val, sym->st_size);
 			break;
 		case REL_OFFSET32:
@@ -529,42 +562,59 @@ static void *mmap_fixed(void *p, size_t n, int prot, int flags, int fd, off_t of
 {
 	char *q;
 
-#if !defined(SGXLKL_HW) && defined(DEBUG)
-	// If SGXLKL_DEBUGMOUNT is specified do a file-backed mapping from the
-	// debug moutn over the already allocated region.  This allows perf to
-	// resolve symbols of applications and shared libraries loaded from the
-	// root disk image.
-	char *debugmount, *fdpath;
-	debugmount = getenv("SGXLKL_DEBUGMOUNT");
-	if (fd != -1 && debugmount != NULL) {
-		char debugpath[PATH_MAX];
-		strncpy(debugpath, debugmount, PATH_MAX);
-		debugpath[strlen(debugpath)] = '/';
+	/*
+	 * TODO: port the following code to use the new host interface, otherwise
+	 * debugging inside of enclaves is broken
+	 */
 
-		char procfdpath[24];
-		snprintf(procfdpath, sizeof(procfdpath), "/proc/self/fd/%d", fd);
-		char *filepath = &debugpath[strlen(debugpath)];
-		if (readlink(procfdpath, filepath, (debugpath + PATH_MAX - filepath)) != -1) {
-			int debugfd = host_syscall_SYS_open(debugpath, O_RDONLY, 0);
-			if (debugfd != -1) {
-				q = host_syscall_SYS_mmap(p, n, prot, flags|MAP_FIXED, debugfd, off);
-				host_syscall_SYS_close(debugfd);
-				if (!DL_NOMMU_SUPPORT || q != MAP_FAILED || errno != EINVAL)
-					return q;
-				fprintf(stderr, "[SGX-LKL] Failed to map debug mount file %s: %s\n", debugpath, strerror(errno));
-			} else {
-				fprintf(stderr, "[SGX-LKL] Failed to open debug mount file %s: %s\n", debugpath, strerror(errno));
-			}
-		} else {
-			fprintf(stderr, "[SGX-LKL] Failed to determine debug mount file path: %s\n", strerror(errno));
-		}
-	} else if (debugmount != NULL && flags & MAP_ANONYMOUS) {
-		q = host_syscall_SYS_mmap(p, n, prot, flags|MAP_FIXED, -1, 0);
-		if (q != MAP_FAILED)
-			return q;
-		fprintf(stderr, "[SGX-LKL] Failed to map anonymous host memory: %s\n", strerror(errno));
-	}
-#endif /* !SGXLKL_HW && DEBUG */
+// #if defined(DEBUG)
+// 	if (sgxlkl_enclave->mode == SW_DEBUG_MODE)
+// 	{
+// 		// If SGXLKL_DEBUGMOUNT is specified do a file-backed mapping from the
+// 		// debug moutn over the already allocated region.  This allows perf to
+// 		// resolve symbols of applications and shared libraries loaded from the
+// 		// root disk image.
+// 		char *debugmount, *fdpath;
+// 		debugmount = getenv("SGXLKL_DEBUGMOUNT");
+// 		if (fd != -1 && debugmount != NULL)
+// 		{
+// 			char debugpath[PATH_MAX];
+// 			strncpy(debugpath, debugmount, PATH_MAX);
+// 			debugpath[strlen(debugpath)] = '/';
+//
+// 			char procfdpath[24];
+// 			snprintf(procfdpath, sizeof(procfdpath), "/proc/self/fd/%d", fd);
+// 			char *filepath = &debugpath[strlen(debugpath)];
+// 			if (readlink(procfdpath, filepath, (debugpath + PATH_MAX - filepath)) != -1)
+// 			{
+// 				int debugfd = host_syscall_SYS_open(debugpath, O_RDONLY, 0);
+// 				if (debugfd != -1)
+// 				{
+// 					q = host_syscall_SYS_mmap(p, n, prot, flags | MAP_FIXED, debugfd, off);
+// 					host_syscall_SYS_close(debugfd);
+// 					if (!DL_NOMMU_SUPPORT || q != MAP_FAILED || errno != EINVAL)
+// 						return q;
+// 					fprintf(stderr, "[SGX-LKL] Failed to map debug mount file %s: %s\n", debugpath, strerror(errno));
+// 				}
+// 				else
+// 				{
+// 					fprintf(stderr, "[SGX-LKL] Failed to open debug mount file %s: %s\n", debugpath, strerror(errno));
+// 				}
+// 			}
+// 			else
+// 			{
+// 				fprintf(stderr, "[SGX-LKL] Failed to determine debug mount file path: %s\n", strerror(errno));
+// 			}
+// 		}
+// 		else if (debugmount != NULL && flags & MAP_ANONYMOUS)
+// 		{
+// 			q = host_syscall_SYS_mmap(p, n, prot, flags | MAP_FIXED, -1, 0);
+// 			if (q != MAP_FAILED)
+// 				return q;
+// 			fprintf(stderr, "[SGX-LKL] Failed to map anonymous host memory: %s\n", strerror(errno));
+// 		}
+// 	}
+// #endif
 
 	/* Fallbacks for MAP_FIXED failure on NOMMU kernels. */
 	if (flags & MAP_ANONYMOUS) {
@@ -1613,13 +1663,14 @@ hidden void *__tls_get_new(tls_mod_off_t *v)
 
 static void update_tls_size()
 {
-#ifdef SGXLKL_HW
+
+if (sgxlkl_enclave->mode != SW_DEBUG_MODE) {
 	static int fsgsbase_warn = 0;
 	if (!libc.user_tls_enabled && tls_cnt > 0 && !fsgsbase_warn) {
-		fprintf(stderr, "[    SGX-LKL   ] Warning: The application requires thread-local storage (TLS), but the current system configuration does not allow SGX-LKL to provide full TLS support in hardware mode. See sgx-lkl-run --help-tls for more information.\n");
+		fprintf(stderr, "[    SGX-LKL   ] Warning: The application requires thread-local storage (TLS), but the current system configuration does not allow SGX-LKL to provide full TLS support in hardware mode. See sgx-lkl-run-oe --help-tls for more information.\n");
 		fsgsbase_warn = 1;
 	}
-#endif
+}
 	libc.tls_cnt = tls_cnt;
 	libc.tls_align = tls_align;
 	libc.tls_size = ALIGN(
@@ -1634,7 +1685,7 @@ static void update_tls_size()
  * following stage 2 and stage 3 functions via primitive symbolic lookup
  * since it does not have access to their addresses to begin with. */
 
-/* Stage 2 of the dynamic linker is called after relative relocations 
+/* Stage 2 of the dynamic linker is called after relative relocations
  * have been processed. It can make function calls to static functions
  * and access string literals and static data, but cannot use extern
  * symbols. Its job is to perform symbolic relocations on the dynamic
@@ -1722,13 +1773,14 @@ void *__dls2b(size_t *sp)
 
 	// We don't call __dls3 here. Once we've got here, we're safe enough to
 	// init LKL, after which we can then run stage 3.
-#ifndef SGXLKL_HW
-	struct symdef sgx_init_def = find_sym(&ldso, "__sgx_init_enclave", 0);
-	if (DL_FDPIC) return &ldso.funcdescs[sgx_init_def.sym-ldso.syms];
-	else return laddr(&ldso, sgx_init_def.sym->st_value);
-#else
-	return 0;
-#endif
+
+	if (sgxlkl_enclave->mode == SW_DEBUG_MODE) {
+		struct symdef sgx_init_def = find_sym(&ldso, "__sgx_init_enclave", 0);
+		if (DL_FDPIC) return &ldso.funcdescs[sgx_init_def.sym-ldso.syms];
+		else return laddr(&ldso, sgx_init_def.sym->st_value);
+	} else {
+		return 0;
+	}
 }
 
 static _Noreturn void __attribute__((optimize("-O0")))
@@ -1754,12 +1806,18 @@ prepare_stack_and_jmp_to_exec(void *at_entry, sgxlkl_app_config_t *conf, void *t
 
 	tosptr = (char**)tos;
 
+	// provide empty auxv
+	*(tosptr--) = NULL;
+	*(tosptr--) = AT_NULL;
+
+	// copy envp
 	base = t = conf->envp;
 	while (*t) { t++; }
 	while (t >= base) {
 		*(tosptr--) = *(t--);
 	}
 
+	// copy argv
 	base = t = argvnew;
 	while (*t) { t++; }
 	while (t >= base) {
@@ -1807,9 +1865,9 @@ void __dls3(sgxlkl_app_config_t *app_config, void *tos)
 	Ehdr *ehdr = (void *)map_library(fd, &app);
 	if (!ehdr) {
 		if (errno)
-			fprintf(stderr, "[    SGX-LKL   ] Error: Failed to map %s: %s\n", argv[0], strerror(errno));
+			sgxlkl_error("Failed to map %s: %s\n", argv[0], strerror(errno));
 		else
-			dprintf(2, "%s: Not a valid dynamic program\n", argv[0]);
+			sgxlkl_error("%s: Not a valid dynamic program\n", argv[0]);
 		_exit(1);
 	}
 	close(fd);
@@ -1884,9 +1942,9 @@ void __dls3(sgxlkl_app_config_t *app_config, void *tos)
 		_exit(127);
 	}
 
-        struct lthread *lt = lthread_self();
-        lt->itls = initial_tls;
-        lt->itlssz = libc.tls_size;
+    struct lthread *lt = lthread_self();
+    lt->itls = initial_tls;
+    lt->itlssz = libc.tls_size;
 	if (__init_utp(__copy_utls(lt, lt->itls, lt->itlssz), 1) < 0) {
 		a_crash();
 	}

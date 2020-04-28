@@ -1,6 +1,6 @@
 #include <sched.h>
-#include <lthread.h>
-#include "lthread_int.h"
+#include <enclave/lthread.h>
+#include "enclave/lthread_int.h"
 #include "syscall.h"
 
 int sched_yield()

@@ -3,7 +3,7 @@
 
 #include <stdio.h>
 #include "syscall.h"
-#include "lthread.h"
+#include "enclave/lthread.h"
 
 #define UNGET 8
 

@@ -49,7 +49,7 @@ CFLAGS_C99FSE = -std=c99 -ffreestanding -nostdinc
 
 
 CFLAGS_ALL = $(CFLAGS_C99FSE)
-CFLAGS_ALL += -D_XOPEN_SOURCE=700 -I$(srcdir)/arch/$(ARCH) -I$(srcdir)/arch/generic -Iobj/src/internal -I$(srcdir)/src/include -I$(srcdir)/src/internal -Iobj/include -I$(srcdir)/include -isystem $(lklheaderdir) $(addprefix -isystem,$(sgxlklincludes))
+CFLAGS_ALL += -D_XOPEN_SOURCE=700 -I$(srcdir)/arch/$(ARCH) -I$(srcdir)/arch/generic -Iobj/src/internal -I$(srcdir)/src/include -I$(srcdir)/src/internal -Iobj/include -I$(srcdir)/include -isystem $(lklheaderdir) $(addprefix -isystem,$(sgxlklincludes)) -I$(OE_SDK_INCLUDES)
 CFLAGS_ALL += $(CPPFLAGS) $(CFLAGS_AUTO) $(CFLAGS) $(CFLAGS_SGX)
 
 # don't allow dynamic linker to use mmap
@@ -161,11 +161,40 @@ obj/%.lo: $(srcdir)/%.S
 obj/%.lo: $(srcdir)/%.c $(GENH) $(IMPH)
 	$(CC_CMD)
 
+# CFLAGS_ALL = -std=c99 -nostdinc -ffreestanding -fexcess-precision=standard -frounding-math -Wa,--noexecstack \ 
+#              -D_XOPEN_SOURCE=700 -I./arch/x86_64 -I./arch/generic -Iobj/src/internal -I./src/include -I./src/internal -Iobj/include -I./include \ 
+#              -isystem /devel/src/secure_containers/sgx-lkl-oe.git/build/lkl/include/ -isystem/devel/src/secure_containers/sgx-lkl-oe.git//src/include \ 
+#              -isystem/devel/src/secure_containers/sgx-lkl-oe.git/build/cryptsetup/include/ -isystem/devel/src/secure_containers/sgx-lkl-oe.git/third_party/linux-sgx/common/inc -isystem/devel/src/secure_containers/sgx-lkl-oe.git/third_party/linux-sgx/common/inc/internal \ 
+#              -g -pipe -fno-unwind-tables -fno-asynchronous-unwind-tables -ffunction-sections -fdata-sections -Werror=implicit-function-declaration \ 
+#              -Werror=implicit-int -Werror=pointer-sign -Werror=pointer-arith -fPIC -D__USE_GNU -O3  -DDL_NOMMU_SUPPORT=1
+
+# LDFLAGS_AUTO = -Wl,--sort-section,alignment -Wl,--sort-common -Wl,--gc-sections -Wl,--hash-style=both -Wl,--no-undefined -Wl,--exclude-libs=ALL -Wl,--dynamic-list=./dynamic.list
+
 lib/libsgxlkl.so: $(LOBJS) $(LDSO_OBJS) $(lkllib) $(sgxlkllib) $(sgxlkllibs)
 	@mkdir -p obj/sgxlkl
-	cd obj/sgxlkl/; ar -x $(sgxlkllib)
-	$(CC) $(CFLAGS_ALL) $(LDFLAGS_ALL) -nostdlib -shared -Wl,-z,defs \
-	-Wl,-e,_dlstart_c -o $@ lib/sgxcrt.o $(LOBJS) obj/sgxlkl/*.o $(LDSO_OBJS) $(LIBCC) $(sgxlkllibs) $(lkllib)
+	@echo "AR $@"
+	@cd obj/sgxlkl/; ar -x $(sgxlkllib)
+	@echo "LD $@"
+	@$(CC) -Wl,--sort-section,alignment -Wl,--sort-common -Wl,--gc-sections -Wl,--hash-style=both -Wl,--no-undefined -Wl,--exclude-libs=ALL -Wl,--dynamic-list=./dynamic.list -nostdlib -nodefaultlibs -nostartfiles \
+	-o $@ $(LOBJS) obj/sgxlkl/*.o $(LDSO_OBJS) $(LIBCC) $(sgxlkllibs) $(lkllib) \
+	-Wl,-Bstatic -Wl,-Bsymbolic -Wl,--export-dynamic -Wl,-pie -Wl,--build-id -Wl,-z,noexecstack -Wl,-z,now  \
+	-L$(OE_SDK_LIBS)/openenclave/enclave -loeenclave -loecryptombed -lmbedx509 -lmbedcrypto -loesyscall -loecore
+
+# Original OE linking options:
+#	-nostdlib -nodefaultlibs -nostartfiles -Wl,--no-undefined -Wl,-Bstatic -Wl,-Bsymbolic -Wl,--export-dynamic -Wl,-pie -Wl,--build-id -Wl,-z,noexecstack -Wl,-z,now 
+
+# I removed the following because SGX-LKL has two undefined symbols:
+# -Wl,--no-undefined
+
+# Complete OE libraries:
+#
+#	-L/opt/openenclave/lib/openenclave/enclave -loeenclave -loecryptombed -lmbedx509 -lmbedcrypto -loelibc -loesyscall -loecore
+	
+# The following are the previous SGX-LKL linker options:
+#
+# $(CFLAGS_ALL) $(LDFLAGS_ALL) 
+#	$(CC) $(CFLAGS_ALL) $(LDFLAGS_ALL) -nostdlib -shared -Wl,-z,defs -Wl,-e,_dlstart_c \ 
+# -o $@ lib/sgxcrt.o $(LOBJS) obj/sgxlkl/*.o $(LDSO_OBJS) $(LIBCC) $(sgxlkllibs) $(lkllib) 
 
 $(EMPTY_LIBS):
 	rm -f $@

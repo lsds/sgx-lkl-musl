@@ -3,7 +3,6 @@
 #include <stdint.h>
 #include "syscall.h"
 #include "atomic.h"
-#include "sgxlkl_debug.h"
 
 #ifdef VDSO_CGT_SYM
 
@@ -89,8 +88,6 @@ static int vdso_read_retry(const struct vsyscall_gtod_data *s, unsigned start)
 	return s->seq != start;
 }
 
-#ifndef SGXLKL_HW
-
 static uint64_t rdtsc_ordered(void)
 {
 	uint64_t low, high, ret;
@@ -116,7 +113,6 @@ static uint64_t vgetsns(const volatile struct vsyscall_gtod_data *s, int volatil
 	v = (cycles - s->cycle_last) & s->mask;
 	return v * s->mult;
 }
-#endif /* SGXLKL_HW */
 
 int __clock_gettime(clockid_t clk, struct timespec *ts)
 {
@@ -142,7 +138,7 @@ int __clock_gettime(clockid_t clk, struct timespec *ts)
 		unsigned seq;
 		uint64_t ns;
 
-                ptr = (struct vsyscall_gtod_data *)((char *)libc.vvar_base + __vsyscall_gtod_data_offset);
+        ptr = (struct vsyscall_gtod_data *)((char *)libc.vvar_base + __vsyscall_gtod_data_offset);
 
 //		do {
 			//seq = vdso_read_begin(ptr);
@@ -162,11 +158,11 @@ int __clock_gettime(clockid_t clk, struct timespec *ts)
 		}
 
 		if ((clk == CLOCK_REALTIME || clk == CLOCK_MONOTONIC)) {
-#ifndef SGXLKL_HW
-			// This requires (efficient) RDTSC support which we don't have
-			// in SGX v1 where RDTSC instructions are illegal.
-			ns += vgetsns(ptr, &ptr->vclock_mode);
-#endif /* SGXLKL_HW */
+			if (sgxlkl_enclave->mode == SW_DEBUG_MODE) {
+				// This requires (efficient) RDTSC support which we don't have
+				// in SGX v1 where RDTSC instructions are illegal.
+				ns += vgetsns(ptr, &ptr->vclock_mode);
+			}
 			ns >>= ptr->shift;
 		}
 //		} while (vdso_read_retry(ptr, seq));

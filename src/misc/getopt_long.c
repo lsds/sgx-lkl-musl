@@ -9,6 +9,9 @@
 
 extern int __optpos, __optreset;
 
+extern void dl_update_global_vars(int, int, int, int, int, char*);
+extern void dl_copy_global_vars(int*, int*, int*,int *, int *);
+
 static void permute(char *const *argv, int dest, int src)
 {
 	char **av = (char **)argv;
@@ -139,10 +142,16 @@ static int __getopt_long_core(int argc, char *const *argv, const char *optstring
 
 int getopt_long(int argc, char *const *argv, const char *optstring, const struct option *longopts, int *idx)
 {
-	return __getopt_long(argc, argv, optstring, longopts, idx, 0);
+	dl_copy_global_vars(&optind, &opterr, &optopt, &__optpos, &__optreset);
+	int ret = __getopt_long(argc, argv, optstring, longopts, idx, 0);
+	dl_update_global_vars(optind, opterr, optopt, __optpos, __optreset, optarg);
+	return ret;
 }
 
 int getopt_long_only(int argc, char *const *argv, const char *optstring, const struct option *longopts, int *idx)
 {
-	return __getopt_long(argc, argv, optstring, longopts, idx, 1);
+	dl_copy_global_vars(&optind, &opterr, &optopt, &__optpos, &__optreset);
+	int ret = __getopt_long(argc, argv, optstring, longopts, idx, 1);
+	dl_update_global_vars(optind, opterr, optopt, __optpos, __optreset, optarg);
+	return ret;
 }

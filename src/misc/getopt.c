@@ -12,6 +12,9 @@ int optind=1, opterr=1, optopt, __optpos, __optreset=0;
 #define optpos __optpos
 weak_alias(__optreset, optreset);
 
+extern void dl_update_global_vars(int, int, int, int, int, char*);
+extern void dl_copy_global_vars(int*, int*, int*,int *, int *);
+
 void __getopt_msg(const char *a, const char *b, const char *c, size_t l)
 {
 	FILE *f = stderr;
@@ -24,7 +27,7 @@ void __getopt_msg(const char *a, const char *b, const char *c, size_t l)
 	FUNLOCK(f);
 }
 
-int getopt(int argc, char * const argv[], const char *optstring)
+int __getopt(int argc, char * const argv[], const char *optstring)
 {
 	int i;
 	wchar_t c, d;
@@ -101,4 +104,11 @@ int getopt(int argc, char * const argv[], const char *optstring)
 	return c;
 }
 
+int getopt(int argc, char * const argv[], const char *optstring)
+{
+	dl_copy_global_vars(&optind, &opterr, &optopt, &__optpos, &__optreset);
+	int ret = __getopt(argc, argv, optstring);
+	dl_update_global_vars(optind, opterr, optopt, __optpos, __optreset, optarg);
+	return ret;
+}
 weak_alias(getopt, __posix_getopt);

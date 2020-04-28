@@ -40,7 +40,6 @@ Optional features:
   --enable-wrapper=...    build given musl toolchain wrapper [auto]
   --disable-shared        inhibit building shared library [enabled]
   --disable-static        inhibit building static library [enabled]
-  --disable-sgx-hw        run in a simulation mode (no SGX required) [disabled]
 
 Some influential environment variables:
   CC                      C compiler command [detected]
@@ -152,7 +151,6 @@ static=yes
 wrapper=auto
 gcc_wrapper=no
 clang_wrapper=no
-use_sgx=yes
 
 for arg ; do
 case "$arg" in
@@ -188,8 +186,6 @@ case "$arg" in
 --disable-wrapper|--enable-wrapper=no) wrapper=no ;;
 --enable-gcc-wrapper|--enable-gcc-wrapper=yes) wrapper=yes ; gcc_wrapper=yes ;;
 --disable-gcc-wrapper|--enable-gcc-wrapper=no) wrapper=no ;;
---disable-sgx-hw) use_sgx=no ;;
---enable-sgx-hw=*) use_sgx=${arg#*=} ;;
 --enable-*|--disable-*|--with-*|--without-*|--*dir=*) ;;
 --host=*|--target=*) target=${arg#*=} ;;
 --build=*) build=${arg#*=} ;;
@@ -774,8 +770,6 @@ if test -z "$sgxlkllib"; then
 	fail "$0: error: SGXLKL lib path required"
 fi
 
-test "$use_sgx" = yes && CFLAGS_SGX="$CFLAGS_SGX -DSGXLKL_HW"
-
 printf "creating config.mak... "
 
 cmdline=$(quote "$0")
@@ -819,7 +813,6 @@ OPTIMIZE_GLOBS = $OPTIMIZE_GLOBS
 ALL_TOOLS = $tools
 TOOL_LIBS = $tool_libs
 ADD_CFI = $ADD_CFI
-USE_SGX = $use_sgx
 EOF
 test "x$static" = xno && echo "STATIC_LIBS ="
 test "x$shared" = xno && echo "SHARED_LIBS ="

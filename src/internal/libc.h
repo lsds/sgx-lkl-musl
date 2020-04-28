@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <limits.h>
 
-#include "sgx_enclave_config.h"
+#include "shared/sgxlkl_config.h"
 
 struct __locale_map;
 
@@ -40,7 +40,7 @@ struct __libc {
 extern hidden struct __libc __libc;
 #define libc __libc
 
-hidden void __init_libc(char **, char *, enclave_config_t *conf);
+hidden void __init_libc(char **, char *);
 hidden void __init_utls(struct tls_module *apptls);
 hidden void __init_tls(void);
 hidden void __init_ssp(void *);

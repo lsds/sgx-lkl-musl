@@ -4,7 +4,7 @@
 #include <locale.h>
 #include <stdlib.h>
 #include "libc.h"
-#include "lthread_int.h"
+#include "enclave/lthread_int.h"
 
 #define LOCALE_NAME_MAX 23
 

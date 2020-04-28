@@ -2,21 +2,22 @@
 #include <stdint.h>
 #include "syscall.h"
 #include "pthread_impl.h"
-#include "sgx_hostcall_interface.h"
+#include <lkl.h>
 
 int raise(int sig)
 {
-    int tid, ret;
+    int tid, pid, ret;
     sigset_t set;
+    long params[6] = {0};
+
     __block_app_sigs(&set);
-#ifdef SGXLKL_HW
-    tid = host_syscall_SYS_gettid();
-    int pid = __syscall(SYS_getpid);
+
+    /* We need to obtain the pid and tid from LKL so that we use
+    the kernel mapped pid, tid for the lthread involved. */
+    pid = lkl_syscall(SYS_getpid, params);
+    tid = lkl_syscall(SYS_gettid, params);
+
     ret = syscall(SYS_tgkill, pid, tid, sig);
-#else
-    tid = __syscall(SYS_gettid);
-    ret = syscall(SYS_tkill, tid, sig);
-#endif
     __restore_sigs(&set);
     return ret;
 }

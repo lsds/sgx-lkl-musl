@@ -6,7 +6,8 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdarg.h>
-#include "sgx_enclave_config.h"
+
+//#include "shared/sgxlkl_config.h"
 
 #if UINTPTR_MAX == 0xffffffff
 typedef Elf32_Ehdr Ehdr;
@@ -95,7 +96,7 @@ struct fdpic_dummy_loadmap {
 #define AUX_CNT 32
 #define DYN_CNT 32
 
-typedef void* (*stage2_func)(unsigned char *, enclave_config_t *);
+typedef void* (*stage2_func)(unsigned char *); // , sgxlkl_config_t *
 typedef void* (*stage3_func)(size_t *);
 
 hidden void *__dlsym(void *restrict, const char *restrict, void *restrict);

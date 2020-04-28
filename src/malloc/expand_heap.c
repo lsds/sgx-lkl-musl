@@ -5,7 +5,7 @@
 #include "libc.h"
 #include "syscall.h"
 #include "malloc_impl.h"
-#include "enclave_mem.h"
+#include "enclave/enclave_mem.h"
 
 /* This function returns true if the interval [old,new]
  * intersects the 'len'-sized interval below &libc.auxv
@@ -66,8 +66,7 @@ void *__expand_heap(size_t *pn)
 
 	size_t min = (size_t)PAGE_SIZE << mmap_step/2;
 	if (n < min) n = min;
-	void *area = enclave_mmap(0, n, 0);
-	mprotect(area, n, PROT_READ|PROT_WRITE);
+	void *area = enclave_mmap(0, n, 0, PROT_READ|PROT_WRITE, 1);
 	if (area == MAP_FAILED) return 0;
 	*pn = n;
 	mmap_step++;

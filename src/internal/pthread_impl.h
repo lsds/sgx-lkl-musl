@@ -1,7 +1,7 @@
 #ifndef _PTHREAD_IMPL_H
 #define _PTHREAD_IMPL_H
 
-#include "lthread_int.h"
+#include "enclave/lthread_int.h"
 #include <pthread.h>
 #include <signal.h>
 #include <errno.h>
@@ -12,9 +12,7 @@
 #include "atomic.h"
 #include "futex.h"
 
-#ifdef SGXLKL_HW
-#include "sgx_enclave_config.h"
-#endif
+#include "shared/sgxlkl_config.h"
 
 #define pthread __pthread
 
@@ -56,10 +54,6 @@ struct schedctx {
 	volatile int killlock[1];
 	char *dlerror_buf;
 	void *stdio_locks;
-
-#ifdef SGXLKL_HW
-	enclave_parms_t *enclave_parms;
-#endif /* SGXLKL_HW */
 
 	/* Part 3 -- the positions of these fields relative to
 	 * the end of the structure is external and internal ABI. */
@@ -109,9 +103,7 @@ struct lthread_tcb_base {
 /* Thread Control Block (TCB) for ethreads/the scheduler (schedctx) */
 struct sched_tcb_base {
     void *self;
-    void *tcs;
-    void *enclave_parms;
-    char _pad_0[16];
+    char _pad_0[32];
     uint64_t stack_guard_dummy; // See struct lthread_tcb_base comment
     struct schedctx *schedctx;
 };

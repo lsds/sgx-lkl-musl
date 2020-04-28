@@ -1,5 +1,5 @@
-#include "lthread_int.h"
-#include <lthread.h>
+#include "enclave/lthread_int.h"
+#include <enclave/lthread.h>
 
 int __pthread_setcancelstate(int new, int *old)
 {

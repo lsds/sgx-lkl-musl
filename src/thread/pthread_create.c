@@ -6,7 +6,7 @@
 #include <sys/mman.h>
 #include <string.h>
 #include <stddef.h>
-#include <lthread.h>
+#include <enclave/lthread.h>
 
 static void dummy_0()
 {

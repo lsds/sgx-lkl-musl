@@ -2,7 +2,7 @@
 #include <string.h>
 #include "pthread_impl.h"
 #include "syscall.h"
-#include <lthread.h>
+#include <enclave/lthread.h>
 
 #if 0
 

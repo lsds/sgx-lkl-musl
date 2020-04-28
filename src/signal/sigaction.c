@@ -25,7 +25,6 @@ volatile int __eintr_valid_flag;
 
 int __libc_sigaction(int sig, const struct sigaction *restrict sa, struct sigaction *restrict old)
 {
- 	void *old_segv_handler = NULL, *old_fpe_handler = NULL;
 	struct k_sigaction ksa, ksa_old;
 	unsigned long set[_NSIG/(8*sizeof(long))];
 	if (sa) {
@@ -60,14 +59,6 @@ int __libc_sigaction(int sig, const struct sigaction *restrict sa, struct sigact
 			LOCK(__abort_lock);
 		}
 
-		if (sig == SIGSEGV) {
-			old_segv_handler = sigsegv_handler;
-			sigsegv_handler = sa->sa_handler;
-		} else if (sig == SIGFPE) {
-			old_fpe_handler = sigfpe_handler;
-			sigfpe_handler = sa->sa_handler;
-		}
-
 		ksa.handler = sa->sa_handler;
 		ksa.flags = sa->sa_flags | SA_RESTORER;
 		ksa.restorer = (sa->sa_flags & SA_SIGINFO) ? __restore_rt : __restore;
@@ -79,12 +70,7 @@ int __libc_sigaction(int sig, const struct sigaction *restrict sa, struct sigact
 		__restore_sigs(&set);
 	}
 	if (old && !r) {
-		if(sig == SIGSEGV)
-			old->sa_handler = old_segv_handler;
-		else if(sig == SIGFPE)
-			old->sa_handler = old_fpe_handler;
-		else
-			old->sa_handler = ksa_old.handler;
+		old->sa_handler = ksa_old.handler;
 		old->sa_flags = ksa_old.flags;
 		memcpy(&old->sa_mask, &ksa_old.mask, _NSIG/8);
 	}

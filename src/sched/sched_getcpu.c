@@ -27,6 +27,17 @@ int sched_getcpu(void)
 	int r;
 	unsigned cpu;
 
+	/*
+	 * [PRP HACK] Workaround for .Net CoreCLR
+	 *
+	 * SGX-LKL currently does not include enough x86 architecture specific code to have a
+	 * view on CPUs and sockets, which can be returned to the application. For now, we
+	 * simply return 0 to indicate that the current thread always runs on the same CPU.
+	 * This should not result in incorrect behaviour by the application.
+	 */
+	return 0;
+
+#if 0
 #ifdef VDSO_GETCPU_SYM
 	getcpu_f f = (getcpu_f)vdso_func;
 	if (f) {
@@ -39,4 +50,6 @@ int sched_getcpu(void)
 	r = __syscall(SYS_getcpu, &cpu, 0, 0);
 	if (!r) return cpu;
 	return __syscall_ret(r);
+#endif
+
 }

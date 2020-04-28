@@ -5,6 +5,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <netinet/in.h>
+#include <resolv.h>
 
 int __get_resolv_conf(struct resolvconf *conf, char *search, size_t search_sz)
 {
@@ -83,6 +84,16 @@ int __get_resolv_conf(struct resolvconf *conf, char *search, size_t search_sz)
 	__fclose_ca(f);
 
 no_resolv_conf:
+	{
+		res_state rs = __res_state();
+		for (int i = 0; i < rs->nscount && nns < MAXNS; i++) {
+			conf->ns[i].family = rs->nsaddr_list[i].sin_family;
+			conf->ns[i].scopeid = 0;
+			memcpy(&conf->ns[i].addr, &rs->nsaddr_list[i].sin_addr, sizeof(struct in_addr));
+			nns++;
+		}
+	}
+
 	if (!nns) {
 		__lookup_ipliteral(conf->ns, "127.0.0.1", AF_UNSPEC);
 		nns = 1;
