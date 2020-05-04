@@ -134,17 +134,6 @@ static inline long __filter_syscall2(long n, long a1, long a2) {
 		long res = (long)syscall_SYS_munmap((void*)a1, (size_t)a2);
 		__sgxlkl_log_syscall(SGXLKL_INTERNAL_SYSCALL, n, res, 2, a1, a2);
 		return res;
-	} else if (n == SYS_clock_gettime) {	
-		// Force call to go through libc clock_gettime implementation to make use of the vDSO path.	
-		clockid_t clk = (clockid_t) a1;	
-		struct timespec *ts = (struct timespec *) a2;	
-		if (libc.vvar_base && (clk == CLOCK_REALTIME || clk == CLOCK_MONOTONIC ||	
-		                       clk == CLOCK_REALTIME_COARSE || clk == CLOCK_MONOTONIC_COARSE)) {	
-			return clock_gettime(clk, ts);	
-		}	
-		int ret = 0;	
-		sgxlkl_host_syscall_clock_gettime(&ret, clk, ts);	
-		return (long)ret;			
 	} else if (n == SYS_fstat) {
 		struct lkl_stat tmp_stat;
 		params[0] = a1;
@@ -265,11 +254,6 @@ static inline long __filter_syscall6(long n, long a1, long a2, long a3, long a4,
 			__sgxlkl_log_syscall(SGXLKL_LKL_SYSCALL, n, res, 6, a1, a2, a3, a4, a5, a6);
 			return res;
 		}
-	} else if (n == SYS_futex) {
-		long res = (long)syscall_SYS_futex((int*)a1, (int)a2, (int)a3, (const struct timespec*)a4,
-			(int*)a5, (int)a6);
-		__sgxlkl_log_syscall(SGXLKL_INTERNAL_SYSCALL, n, res, 6, a1, a2, a3, a4, a5, a6);
-		return res;
 	} else {
 		params[0] = a1;
 		params[1] = a2;
