@@ -81,6 +81,10 @@ LDSO_PATHNAME = $(syslibdir)/ld-musl-$(ARCH)$(SUBARCH).so.1
 
 -include config.mak
 
+ifeq ($(CODE_COVERAGE),true)
+  CFLAGS_ALL += -fprofile-arcs -ftest-coverage
+endif
+
 ifeq ($(ARCH),)
 
 all:
@@ -176,7 +180,7 @@ lib/libsgxlkl.so: $(LOBJS) $(LDSO_OBJS) $(lkllib) $(sgxlkllib) $(sgxlkllibs)
 	@cd obj/sgxlkl/; ar -x $(sgxlkllib)
 	@echo "LD $@"
 	@$(CC) -Wl,--sort-section,alignment -Wl,--sort-common -Wl,--gc-sections -Wl,--hash-style=both -Wl,--no-undefined -Wl,--exclude-libs=ALL -Wl,--dynamic-list=./dynamic.list -nostdlib -nodefaultlibs -nostartfiles \
-	-o $@ $(LOBJS) obj/sgxlkl/*.o $(LDSO_OBJS) $(LIBCC) $(sgxlkllibs) $(lkllib) \
+	-o $@ $(LOBJS) obj/sgxlkl/*.o ./libgcov_musl.a $(LDSO_OBJS) $(LIBCC) $(sgxlkllibs) $(lkllib) \
 	-Wl,-Bstatic -Wl,-Bsymbolic -Wl,--export-dynamic -Wl,-pie -Wl,--build-id -Wl,-z,noexecstack -Wl,-z,now  \
 	-L$(OE_SDK_LIBS)/openenclave/enclave -loeenclave -loecryptombed -lmbedx509 -lmbedcrypto -loesyscall -loecore
 
