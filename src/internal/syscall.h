@@ -255,11 +255,6 @@ static inline long __filter_syscall6(long n, long a1, long a2, long a3, long a4,
 			__sgxlkl_log_syscall(SGXLKL_LKL_SYSCALL, n, res, 6, a1, a2, a3, a4, a5, a6);
 			return res;
 		}
-	} else if (n == SYS_futex) {
-		long res = (long)syscall_SYS_futex_override((int*)a1, (int)a2, (int)a3, (const struct timespec*)a4,
-			(int*)a5, (int)a6);
-		__sgxlkl_log_syscall(SGXLKL_INTERNAL_SYSCALL, n, res, 6, a1, a2, a3, a4, a5, a6);
-		return res;
 	} else {
 		params[0] = a1;
 		params[1] = a2;
