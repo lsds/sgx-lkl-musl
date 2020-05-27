@@ -9,6 +9,7 @@
 #include "syscall.h"
 #include "enclave/sgxlkl_config.h"
 #include "enclave/lthread.h"
+#include "enclave/enclave_util.h"
 
 static int spawned_ethreads = 1;
 

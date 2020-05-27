@@ -21,6 +21,7 @@
 #include "libc.h"
 #include "dynlink.h"
 #include "malloc_impl.h"
+#include "enclave/enclave_util.h"
 #include "enclave/sgxlkl_app_config.h"
 #include <sys/prctl.h>
 
