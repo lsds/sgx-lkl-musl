@@ -16,7 +16,7 @@
 
 #include "enclave/sgxlkl_t.h"
 #include "enclave/enclave_mem.h"
-#include "enclave/enclave_util.h"
+#include "lkl/lkl_util.h"
 
 #ifndef SYSCALL_RLIM_INFINITY
 #define SYSCALL_RLIM_INFINITY (~0ULL)
