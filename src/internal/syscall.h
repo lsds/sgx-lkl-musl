@@ -8,7 +8,6 @@
 #include <sys/syscall.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
-#include <sys/sysinfo.h>
 #include "syscall_arch.h"
 
 #include "lkl.h"
@@ -91,18 +90,11 @@ static inline long __filter_syscall1(long n, long a1) {
 	if (is_unsupported(n)) return -ENOSYS;
 
 	long params[6] = {0};
+	params[0] = a1;
+	long res = lkl_syscall(n, params);
+	__sgxlkl_log_syscall(SGXLKL_LKL_SYSCALL, n, res, 1, a1);
 
-	if (n == SYS_sysinfo) {
-		long res = (long) syscall_SYS_sysinfo((struct sysinfo *) a1);
-		__sgxlkl_log_syscall(SGXLKL_INTERNAL_SYSCALL, n, res, 1, a1);
-		return res;
-	} else {
-		params[0] = a1;
-		long res = lkl_syscall(n, params);
-		__sgxlkl_log_syscall(SGXLKL_LKL_SYSCALL, n, res, 1, a1);
-
-		return res;
-	}
+	return res;
 }
 
 static inline long __filter_syscall2(long n, long a1, long a2) {
