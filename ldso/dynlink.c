@@ -22,8 +22,9 @@
 #include "dynlink.h"
 #include "malloc_impl.h"
 #include "enclave/enclave_util.h"
-#include "enclave/sgxlkl_app_config.h"
 #include <sys/prctl.h>
+
+#include <enclave/enclave_oe.h>
 
 static void error(const char *, ...);
 
@@ -569,7 +570,7 @@ static void *mmap_fixed(void *p, size_t n, int prot, int flags, int fd, off_t of
 	 */
 
 // #if defined(DEBUG)
-// 	if (sgxlkl_enclave->mode == SW_DEBUG_MODE)
+// 	if (sgxlkl_in_sw_debug_mode())
 // 	{
 // 		// If SGXLKL_DEBUGMOUNT is specified do a file-backed mapping from the
 // 		// debug moutn over the already allocated region.  This allows perf to
@@ -1665,7 +1666,7 @@ hidden void *__tls_get_new(tls_mod_off_t *v)
 static void update_tls_size()
 {
 
-if (sgxlkl_enclave->mode != SW_DEBUG_MODE) {
+if (!sgxlkl_in_sw_debug_mode()) {
 	static int fsgsbase_warn = 0;
 	if (!libc.user_tls_enabled && tls_cnt > 0 && !fsgsbase_warn) {
 		fprintf(stderr, "[    SGX-LKL   ] Warning: The application requires thread-local storage (TLS), but the current system configuration does not allow SGX-LKL to provide full TLS support in hardware mode. See sgx-lkl-run-oe --help-tls for more information.\n");
@@ -1775,7 +1776,7 @@ void *__dls2b(size_t *sp)
 	// We don't call __dls3 here. Once we've got here, we're safe enough to
 	// init LKL, after which we can then run stage 3.
 
-	if (sgxlkl_enclave->mode == SW_DEBUG_MODE) {
+	if (sgxlkl_in_sw_debug_mode()) {
 		struct symdef sgx_init_def = find_sym(&ldso, "__sgx_init_enclave", 0);
 		if (DL_FDPIC) return &ldso.funcdescs[sgx_init_def.sym-ldso.syms];
 		else return laddr(&ldso, sgx_init_def.sym->st_value);
@@ -1785,7 +1786,7 @@ void *__dls2b(size_t *sp)
 }
 
 static _Noreturn void __attribute__((optimize("-O0")))
-prepare_stack_and_jmp_to_exec(void *at_entry, sgxlkl_app_config_t *conf, void *tos) {
+prepare_stack_and_jmp_to_exec(void *at_entry, sgxlkl_enclave_config_t *conf, void *tos) {
 	// Normally, we would use argv as a marker for the top of the
 	// stack, but since argv is embedded within the config
 	// struct in this case we can't do that without writing garbage
@@ -1801,8 +1802,8 @@ prepare_stack_and_jmp_to_exec(void *at_entry, sgxlkl_app_config_t *conf, void *t
 	register char **tosptr;
 	register char **t;
 	register char **base;
-	register  char **argvnew = conf->argv;
-	register long argcnew = (long) conf->argc;
+	register  char **argvnew = conf->app_config.argv;
+	register long argcnew = (long) conf->app_config.argc;
 	register void *app_entry = at_entry;
 
 	tosptr = (char**)tos;
@@ -1812,7 +1813,7 @@ prepare_stack_and_jmp_to_exec(void *at_entry, sgxlkl_app_config_t *conf, void *t
 	*(tosptr--) = AT_NULL;
 
 	// copy envp
-	base = t = conf->envp;
+	base = t = conf->app_config.envp;
 	while (*t) { t++; }
 	while (t >= base) {
 		*(tosptr--) = *(t--);
@@ -1836,7 +1837,7 @@ prepare_stack_and_jmp_to_exec(void *at_entry, sgxlkl_app_config_t *conf, void *t
  * process dependencies and relocations for the main application and
  * transfer control to its entry point. */
 
-void __dls3(sgxlkl_app_config_t *app_config, void *tos)
+void __dls3(sgxlkl_enclave_config_t *config, void *tos)
 {
 	static struct dso app, vdso;
 	size_t aux[AUX_CNT], *auxv;
@@ -1844,9 +1845,9 @@ void __dls3(sgxlkl_app_config_t *app_config, void *tos)
 	char *env_preload=0;
 	char *replace_argv0=0;
 	size_t vdso_base;
-	int argc = app_config->argc;
-	char **argv = app_config->argv;
-	char **envp = app_config->envp;
+	int argc = config->app_config.argc;
+	char **argv = config->app_config.argv;
+	char **envp = config->app_config.envp;
 
 	auxv = libc.auxv;
 	decode_vec(auxv, aux, AUX_CNT);
@@ -1998,7 +1999,7 @@ void __dls3(sgxlkl_app_config_t *app_config, void *tos)
 
 	errno = 0;
 
-	prepare_stack_and_jmp_to_exec((void *)aux[AT_ENTRY], app_config, tos);
+	prepare_stack_and_jmp_to_exec((void *)aux[AT_ENTRY], config, tos);
 }
 
 static void prepare_lazy(struct dso *p)

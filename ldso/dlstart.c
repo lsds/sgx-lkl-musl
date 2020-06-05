@@ -2,8 +2,6 @@
 #include "dynlink.h"
 #include "libc.h"
 
-//#include "shared/sgxlkl_config.h"
-
 #ifndef START
 #define START "_dlstart"
 #endif

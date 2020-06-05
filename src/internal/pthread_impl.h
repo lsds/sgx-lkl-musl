@@ -12,8 +12,6 @@
 #include "atomic.h"
 #include "futex.h"
 
-#include "enclave/sgxlkl_config.h"
-
 #define pthread __pthread
 
 struct schedctx {

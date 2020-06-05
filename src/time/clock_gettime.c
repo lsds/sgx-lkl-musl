@@ -4,6 +4,8 @@
 #include "syscall.h"
 #include "atomic.h"
 
+#include <enclave/enclave_oe.h>
+
 #ifdef VDSO_CGT_SYM
 
 static void *volatile vdso_func;
@@ -158,7 +160,7 @@ int __clock_gettime(clockid_t clk, struct timespec *ts)
 		}
 
 		if ((clk == CLOCK_REALTIME || clk == CLOCK_MONOTONIC)) {
-			if (sgxlkl_enclave->mode == SW_DEBUG_MODE) {
+			if (sgxlkl_in_sw_debug_mode()) {
 				// This requires (efficient) RDTSC support which we don't have
 				// in SGX v1 where RDTSC instructions are illegal.
 				ns += vgetsns(ptr, &ptr->vclock_mode);

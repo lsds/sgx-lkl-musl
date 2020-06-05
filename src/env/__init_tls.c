@@ -7,7 +7,7 @@
 #include "libc.h"
 #include "atomic.h"
 #include "syscall.h"
-#include "enclave/sgxlkl_config.h"
+#include "enclave/enclave_oe.h"
 #include "enclave/lthread.h"
 #include "enclave/enclave_util.h"
 
@@ -38,7 +38,7 @@ int __init_utp(void *p, int set_tp)
 	tcb->schedctx = __scheduler_self();
 	if (libc.user_tls_enabled && set_tp)
 	{
-		if (sgxlkl_enclave->mode == SW_DEBUG_MODE)
+		if (sgxlkl_in_sw_debug_mode())
 		{
 			int r = __set_thread_area(TP_ADJ(p));
 			if (r < 0)
