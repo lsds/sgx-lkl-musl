@@ -47,7 +47,7 @@ TYPEDEF unsigned useconds_t;
 #ifdef __cplusplus
 TYPEDEF unsigned long pthread_t;
 #else
-TYPEDEF struct lthread * pthread_t;
+TYPEDEF struct __pthread * pthread_t;
 #endif
 TYPEDEF int pthread_once_t;
 TYPEDEF unsigned pthread_key_t;
