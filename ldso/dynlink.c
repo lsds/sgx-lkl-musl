@@ -1786,7 +1786,7 @@ void *__dls2b(size_t *sp)
 }
 
 static _Noreturn void __attribute__((optimize("-O0")))
-prepare_stack_and_jmp_to_exec(void *at_entry, sgxlkl_enclave_config_t *conf, void *tos) {
+prepare_stack_and_jmp_to_exec(void *at_entry, elf64_stack_t *stack, void *tos) {
 	// Normally, we would use argv as a marker for the top of the
 	// stack, but since argv is embedded within the config
 	// struct in this case we can't do that without writing garbage
@@ -1802,8 +1802,8 @@ prepare_stack_and_jmp_to_exec(void *at_entry, sgxlkl_enclave_config_t *conf, voi
 	register char **tosptr;
 	register char **t;
 	register char **base;
-	register  char **argvnew = conf->app_config.argv;
-	register long argcnew = (long) conf->app_config.argc;
+	register  char **argvnew = stack->argv;
+	register long argcnew = (long) stack->argc;
 	register void *app_entry = at_entry;
 
 	tosptr = (char**)tos;
@@ -1813,7 +1813,7 @@ prepare_stack_and_jmp_to_exec(void *at_entry, sgxlkl_enclave_config_t *conf, voi
 	*(tosptr--) = AT_NULL;
 
 	// copy envp
-	base = t = conf->app_config.envp;
+	base = t = stack->envp;
 	while (*t) { t++; }
 	while (t >= base) {
 		*(tosptr--) = *(t--);
@@ -1837,7 +1837,7 @@ prepare_stack_and_jmp_to_exec(void *at_entry, sgxlkl_enclave_config_t *conf, voi
  * process dependencies and relocations for the main application and
  * transfer control to its entry point. */
 
-void __dls3(sgxlkl_enclave_config_t *config, void *tos)
+void __dls3(elf64_stack_t *stack, void *tos)
 {
 	static struct dso app, vdso;
 	size_t aux[AUX_CNT], *auxv;
@@ -1845,9 +1845,9 @@ void __dls3(sgxlkl_enclave_config_t *config, void *tos)
 	char *env_preload=0;
 	char *replace_argv0=0;
 	size_t vdso_base;
-	int argc = config->app_config.argc;
-	char **argv = config->app_config.argv;
-	char **envp = config->app_config.envp;
+	int argc = stack->argc;
+	char **argv = stack->argv;
+	char **envp = stack->envp;
 
 	auxv = libc.auxv;
 	decode_vec(auxv, aux, AUX_CNT);
@@ -1999,7 +1999,7 @@ void __dls3(sgxlkl_enclave_config_t *config, void *tos)
 
 	errno = 0;
 
-	prepare_stack_and_jmp_to_exec((void *)aux[AT_ENTRY], config, tos);
+	prepare_stack_and_jmp_to_exec((void *)aux[AT_ENTRY], stack, tos);
 }
 
 static void prepare_lazy(struct dso *p)
