@@ -183,7 +183,7 @@ static void cleanup(void *ctx)
 		__syscall(SYS_rt_sigqueueinfo, si.si_pid, si.si_signo, &si);
 	}
 	if (sev.sigev_notify == SIGEV_THREAD) {
-		//a_store(&__pthread_self()->cancel, 0);
+		a_store(&__pthread_self()->cancel, 0);
 		sev.sigev_notify_function(sev.sigev_value);
 	}
 }
