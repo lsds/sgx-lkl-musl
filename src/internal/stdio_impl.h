@@ -3,7 +3,6 @@
 
 #include <stdio.h>
 #include "syscall.h"
-#include "enclave/lthread.h"
 
 #define UNGET 8
 
@@ -89,9 +88,9 @@ hidden FILE **__ofl_lock(void);
 hidden void __ofl_unlock(void);
 
 struct __pthread;
-hidden void __register_locked_file(FILE *f, struct lthread *self);
+hidden void __register_locked_file(FILE *, struct __pthread *);
 hidden void __unlist_locked_file(FILE *);
-hidden void __do_orphaned_stdio_locks(struct lthread *lt);
+hidden void __do_orphaned_stdio_locks(void);
 
 #define MAYBE_WAITERS 0x40000000
 
