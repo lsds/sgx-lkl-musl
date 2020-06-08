@@ -2,6 +2,7 @@
 #include <sched.h>
 #include <string.h>
 #include <errno.h>
+#include "pthread_impl.h"
 
 #include "syscall.h"
 
@@ -13,8 +14,8 @@ int sched_setaffinity(pid_t tid, size_t size, const cpu_set_t *set)
 
 int pthread_setaffinity_np(pthread_t td, size_t size, const cpu_set_t *set)
 {
-	struct lthread *lt = (struct lthread *)td;
-	lt->attr.state |= BIT(LT_ST_PINNED);
+	// struct lthread *lt = (struct lthread *)td;
+	// lt->attr.state |= BIT(LT_ST_PINNED);
 	/* Don't call sched_setaffinity because ethreads are
 	   already pinned to cores in the starter */
 	return 0;
