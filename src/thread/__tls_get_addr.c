@@ -3,7 +3,7 @@
 
 void *__tls_get_addr(tls_mod_off_t *v)
 {
-	struct lthread *self = lthread_self();
+	pthread_t self = __pthread_self();
 	if (v[0] <= self->dtv[0])
 		return (void *)(self->dtv[v[0]] + v[1]);
 	return __tls_get_new(v);

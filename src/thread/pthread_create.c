@@ -6,7 +6,6 @@
 #include <sys/mman.h>
 #include <string.h>
 #include <stddef.h>
-#include <enclave/lthread.h>
 
 static void dummy_0()
 {
@@ -22,8 +21,6 @@ static void *dummy_1(void *p)
 	return 0;
 }
 weak_alias(dummy_1, __start_sched);
-
-#if 0
 
 _Noreturn void __pthread_exit(void *result)
 {
@@ -311,45 +308,6 @@ int __pthread_create(pthread_t *restrict res, const pthread_attr_t *restrict att
 fail:
 	__release_ptc();
 	return EAGAIN;
-}
-#endif
-
-void __do_cleanup_push(struct __ptcb *cb)
-{
-	struct lthread *self = lthread_self();
-        struct lthread_sched *sched;
-        if (self) {
-                cb->__next = self->cancelbuf;
-                self->cancelbuf = cb;
-        }
-}
-
-void __do_cleanup_pop(struct __ptcb *cb)
-{
-        struct lthread *self = lthread_self();
-        if (self) {
-                self->cancelbuf = cb->__next;
-        }
-}
-
-int __pthread_create(pthread_t *restrict res, const pthread_attr_t *restrict attrp, void *(*entry)(void *), void *restrict arg)
-{
-    int r, detach = 0;
-    struct lthread_attr a = {0};
-    if (attrp) {
-            pthread_attr_getstack(attrp, &a.stack, &a.stack_size);
-            pthread_attr_getdetachstate(attrp, &detach);
-            if (detach == PTHREAD_CREATE_DETACHED) {
-                a.state = BIT(LT_ST_DETACH);
-            }
-    }
-    r = lthread_create((struct lthread **)res, &a, (void*)entry, arg);
-    return r;
-}
-
-void __pthread_exit(void *result)
-{
-    return lthread_exit(result);
 }
 
 weak_alias(__pthread_exit, pthread_exit);
