@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include "syscall.h"
 #include "atomic.h"
+#include "libc.h"
 
 #include <enclave/enclave_oe.h>
 
