@@ -12,7 +12,6 @@
 #include "syscall_arch.h"
 
 #include "lkl.h"
-#include "lkl/syscall-overrides-futex.h"
 
 #include "enclave/sgxlkl_t.h"
 #include "enclave/enclave_mem.h"
