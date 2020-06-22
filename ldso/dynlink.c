@@ -106,7 +106,7 @@ struct symdef {
 
 static struct builtin_tls {
 	char c;
-        struct pthread pt;
+    struct pthread pt;
 	void *space[16];
 } builtin_tls[1];
 #define MIN_TLS_ALIGN offsetof(struct builtin_tls, pt)
@@ -1937,8 +1937,6 @@ void __dls3(elf64_stack_t *stack, void *tos)
 	 * copy relocations which depend on libraries' relocations. */
 	reloc_all(app.next);
 	reloc_all(&app);
-
-	// __init_utls(&app.tls);
 
 	update_tls_size();
 	//if (libc.tls_size > sizeof builtin_tls || tls_align > MIN_TLS_ALIGN) {
