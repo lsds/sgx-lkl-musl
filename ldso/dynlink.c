@@ -106,7 +106,7 @@ struct symdef {
 
 static struct builtin_tls {
 	char c;
-    struct pthread pt;
+	struct pthread pt;
 	void *space[16];
 } builtin_tls[1];
 #define MIN_TLS_ALIGN offsetof(struct builtin_tls, pt)
