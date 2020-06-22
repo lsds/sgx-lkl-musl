@@ -1678,13 +1678,13 @@ if (!sgxlkl_in_sw_debug_mode()) {
 	}
 }
 	libc.tls_cnt = tls_cnt;
-	libc.tls_align = tls_align;
+	libc.tls_align = 16; //tls_align;
 	libc.tls_size = ALIGN(
 		(1+tls_cnt) * sizeof(void *) +
 		tls_offset +
 		sizeof(struct pthread) +
-		tls_align * 2,
-	tls_align);
+		libc.tls_align * 2,
+	libc.tls_align);
 }
 
 /* Stage 1 of the dynamic linker is defined in dlstart.c. It calls the
