@@ -1676,9 +1676,8 @@ if (!sgxlkl_in_sw_debug_mode()) {
 		fprintf(stderr, "[    SGX-LKL   ] Warning: The application requires thread-local storage (TLS), but the current system configuration does not allow SGX-LKL to provide full TLS support in hardware mode. See sgx-lkl-run-oe --help-tls for more information.\n");
 		fsgsbase_warn = 1;
 	}
-}
 	libc.tls_cnt = tls_cnt;
-	libc.tls_align = 16; //tls_align;
+	libc.tls_align = tls_align;
 	libc.tls_size = ALIGN(
 		(1+tls_cnt) * sizeof(void *) +
 		tls_offset +
@@ -1939,6 +1938,10 @@ void __dls3(elf64_stack_t *stack, void *tos)
 	reloc_all(&app);
 
 	update_tls_size();
+	// We have set tls_align to 16 in update_tls_size(), this will cause the if
+	// branch to always evaluate to true.
+	// Which is what we want(for now), as the else logic makes assumptions that the
+	// execution of the earlier stages of the linker happened in the same thread.
 	//if (libc.tls_size > sizeof builtin_tls || tls_align > MIN_TLS_ALIGN) {
 		void *initial_tls = calloc(libc.tls_size, 1);
 		if (!initial_tls) {
