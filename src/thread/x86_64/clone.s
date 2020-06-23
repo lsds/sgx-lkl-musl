@@ -40,6 +40,7 @@ __clone:
 	xor %ebp,%ebp
 	pop %rdi
 	pop %r9
+	and $-16,%rsp
 	call *%r9
 	// exit system call if this function returns
 	subq $5*8, %rsp
