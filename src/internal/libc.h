@@ -22,7 +22,6 @@ struct __libc {
 	int threaded;
 	int secure;
 	int user_tls_enabled;
-	void *vvar_base;
 	volatile int threads_minus_1;
 	size_t *auxv;
 	struct tls_module *tls_head;

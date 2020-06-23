@@ -132,48 +132,7 @@ int __clock_gettime(clockid_t clk, struct timespec *ts)
 		 * also handles the case where cgt_init fails to find
 		 * a vdso function to use. */
 	}
-#endif
-
-	if (libc.vvar_base && (clk == CLOCK_REALTIME || clk == CLOCK_MONOTONIC ||
-	                       clk == CLOCK_REALTIME_COARSE || clk == CLOCK_MONOTONIC_COARSE)) {
-		volatile struct vsyscall_gtod_data *ptr;
-		unsigned seq;
-		uint64_t ns;
-
-        ptr = (struct vsyscall_gtod_data *)((char *)libc.vvar_base + __vsyscall_gtod_data_offset);
-
-//		do {
-			//seq = vdso_read_begin(ptr);
-		seq = ptr->seq;
-		if (clk == CLOCK_REALTIME) {
-			ts->tv_sec = ptr->wall_time_sec;
-			ns = ptr->wall_time_snsec;
-		} else if (clk == CLOCK_REALTIME_COARSE) {
-			ts->tv_sec = ptr->wall_time_coarse_sec;
-			ns = ptr->wall_time_coarse_nsec;
-		} else if (clk == CLOCK_MONOTONIC) {
-			ts->tv_sec = ptr->monotonic_time_sec;
-			ns = ptr->monotonic_time_snsec;
-		} else if (clk == CLOCK_MONOTONIC_COARSE) {
-			ts->tv_sec = ptr->monotonic_time_coarse_sec;
-			ns = ptr->monotonic_time_coarse_nsec;
-		}
-
-		if ((clk == CLOCK_REALTIME || clk == CLOCK_MONOTONIC)) {
-			if (sgxlkl_in_sw_debug_mode()) {
-				// This requires (efficient) RDTSC support which we don't have
-				// in SGX v1 where RDTSC instructions are illegal.
-				ns += vgetsns(ptr, &ptr->vclock_mode);
-			}
-			ns >>= ptr->shift;
-		}
-//		} while (vdso_read_retry(ptr, seq));
-
-		ts->tv_sec += __iter_div_u64_rem(ns, 1000000000L, &ns);
-		ts->tv_nsec = ns;
-
-		return __syscall_ret(0);
-	}
+#endif	
 
 	r = __syscall(SYS_clock_gettime, clk, ts);
 	if (r == -ENOSYS) {
