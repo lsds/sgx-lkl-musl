@@ -1938,9 +1938,7 @@ void __dls3(elf64_stack_t *stack, void *tos)
 	reloc_all(&app);
 
 	update_tls_size();
-	// We have set tls_align to 16 in update_tls_size(), this will cause the if
-	// branch to always evaluate to true.
-	// Which is what we want(for now), as the else logic makes assumptions that the
+	// The else logic is commented because it makes assumptions that the
 	// execution of the earlier stages of the linker happened in the same thread.
 	//if (libc.tls_size > sizeof builtin_tls || tls_align > MIN_TLS_ALIGN) {
 		void *initial_tls = calloc(libc.tls_size, 1);
