@@ -1770,11 +1770,11 @@ void *__dls2b(size_t *sp)
 	/* Setup early thread pointer in builtin_tls for ldso/libc itself to
 	 * use during dynamic linking. If possible it will also serve as the
 	 * thread pointer at runtime. */
-	// libc.tls_size = sizeof builtin_tls;
-	// libc.tls_align = tls_align;
-	// if (__init_tp(__copy_tls((void *)builtin_tls)) < 0) {
-	// 	a_crash();
-	// }
+	libc.tls_size = sizeof builtin_tls;
+	libc.tls_align = tls_align;
+	if (__init_tp(__copy_tls((void *)builtin_tls)) < 0) {
+		a_crash();
+	}
 
 	// We don't call __dls3 here. Once we've got here, we're safe enough to
 	// init LKL, after which we can then run stage 3.
