@@ -38,40 +38,7 @@ hidden long __syscall_ret(unsigned long), __syscall(syscall_arg_t, ...),
 	__syscall_cp(syscall_arg_t, syscall_arg_t, syscall_arg_t, syscall_arg_t,
 	             syscall_arg_t, syscall_arg_t, syscall_arg_t);
 
-static const long SYSCALLS_IGNORED[] = {
-				SYS_mlock,
-				SYS_mlockall,
-                SYS_munlock,
-                SYS_munlockall,
-                SYS_set_tid_address
-                };
-
-static const long SYSCALLS_UNSUPPORTED[] = {
-                SYS_brk,
-                SYS_sched_setaffinity
-                };
-
-static int is_ignored(long n) {
-	for (size_t i = 0; i < sizeof(SYSCALLS_IGNORED) / sizeof(SYSCALLS_IGNORED[0]); i++)
-		if (SYSCALLS_IGNORED[i] == n) {
-			__sgxlkl_log_syscall(SGXLKL_IGNORED_SYSCALL, n, 0, 0);
-			return 1;
-		}
-	return 0;
-}
-
-static int is_unsupported(long n) {
-	for (size_t i = 0; i < sizeof(SYSCALLS_UNSUPPORTED) / sizeof(SYSCALLS_UNSUPPORTED[0]); i++)
-		if (SYSCALLS_UNSUPPORTED[i] == n) {
-			__sgxlkl_log_syscall(SGXLKL_UNSUPPORTED_SYSCALL, n, -ENOSYS, 0);
-			return 1;
-		}
-	return 0;
-}
-
 static inline long __filter_syscall0(long n) {
-	if (is_ignored(n)) return 0;
-	if (is_unsupported(n)) return -ENOSYS;
 
 	long params[6] = {0};
 	if (n == SYS_gettid) {
@@ -86,8 +53,6 @@ static inline long __filter_syscall0(long n) {
 }
 
 static inline long __filter_syscall1(long n, long a1) {
-	if (is_ignored(n)) return 0;
-	if (is_unsupported(n)) return -ENOSYS;
 
 	long params[6] = {0};
 	params[0] = a1;
@@ -98,8 +63,6 @@ static inline long __filter_syscall1(long n, long a1) {
 }
 
 static inline long __filter_syscall2(long n, long a1, long a2) {
-	if (is_ignored(n)) return 0;
-	if (is_unsupported(n)) return -ENOSYS;
 
 	long params[6] = {0};
 
@@ -118,8 +81,6 @@ static inline long __filter_syscall2(long n, long a1, long a2) {
 }
 
 static inline long __filter_syscall3(long n, long a1, long a2, long a3) {
-	if (is_ignored(n)) return 0;
-	if (is_unsupported(n)) return -ENOSYS;
 
 	long params[6] = {0};
 
@@ -142,8 +103,6 @@ static inline long __filter_syscall3(long n, long a1, long a2, long a3) {
 }
 
 static inline long __filter_syscall4(long n, long a1, long a2, long a3, long a4) {
-	if (is_ignored(n)) return 0;
-	if (is_unsupported(n)) return -ENOSYS;
 
 	long params[6] = {0};
 
@@ -158,8 +117,6 @@ static inline long __filter_syscall4(long n, long a1, long a2, long a3, long a4)
 }
 
 static inline long __filter_syscall5(long n, long a1, long a2, long a3, long a4, long a5) {
-	if (is_ignored(n)) return 0;
-	if (is_unsupported(n)) return -ENOSYS;
 
 	long params[6] = {0};
 
@@ -181,8 +138,6 @@ static inline long __filter_syscall5(long n, long a1, long a2, long a3, long a4,
 }
 
 static inline long __filter_syscall6(long n, long a1, long a2, long a3, long a4, long a5, long a6) {
-	if (is_ignored(n)) return 0;
-	if (is_unsupported(n)) return -ENOSYS;
 
 	long params[6] = {0};
 
