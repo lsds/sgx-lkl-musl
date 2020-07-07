@@ -93,7 +93,6 @@ static inline long __filter_syscall3(long n, long a1, long a2, long a3) {
 		params[1] = a2;
 		params[2] = a3;
 		long res = lkl_syscall(n, params);
-		__sgxlkl_log_syscall(SGXLKL_LKL_SYSCALL, n, res, 3, a1, a2, a3);
 
 		return res;
 	}
@@ -150,7 +149,6 @@ static inline long __filter_syscall6(long n, long a1, long a2, long a3, long a4,
 			params[4] = a5;
 			params[5] = a6;
 			long res = lkl_syscall(n, params);
-			__sgxlkl_log_syscall(SGXLKL_LKL_SYSCALL, n, res, 6, a1, a2, a3, a4, a5, a6);
 			return res;
 		}
 	} else {
