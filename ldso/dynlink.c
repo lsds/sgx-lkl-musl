@@ -1670,12 +1670,14 @@ hidden void *__tls_get_new(tls_mod_off_t *v)
 static void update_tls_size()
 {
 
-if (!sgxlkl_in_sw_debug_mode()) {
-	static int fsgsbase_warn = 0;
-	if (!libc.user_tls_enabled && tls_cnt > 0 && !fsgsbase_warn) {
-		fprintf(stderr, "[    SGX-LKL   ] Warning: The application requires thread-local storage (TLS), but the current system configuration does not allow SGX-LKL to provide full TLS support in hardware mode. See sgx-lkl-run-oe --help-tls for more information.\n");
-		fsgsbase_warn = 1;
+	if (!sgxlkl_in_sw_debug_mode()) {
+		static int fsgsbase_warn = 0;
+		if (!libc.user_tls_enabled && tls_cnt > 0 && !fsgsbase_warn) {
+			fprintf(stderr, "[    SGX-LKL   ] Warning: The application requires thread-local storage (TLS), but the current system configuration does not allow SGX-LKL to provide full TLS support in hardware mode. See sgx-lkl-run-oe --help-tls for more information.\n");
+			fsgsbase_warn = 1;
+		}
 	}
+	
 	libc.tls_cnt = tls_cnt;
 	libc.tls_align = tls_align;
 	libc.tls_size = ALIGN(
@@ -1685,7 +1687,6 @@ if (!sgxlkl_in_sw_debug_mode()) {
 		libc.tls_align * 2,
 	libc.tls_align);
 }
-
 /* Stage 1 of the dynamic linker is defined in dlstart.c. It calls the
  * following stage 2 and stage 3 functions via primitive symbolic lookup
  * since it does not have access to their addresses to begin with. */
@@ -1772,9 +1773,9 @@ void *__dls2b(size_t *sp)
 	 * thread pointer at runtime. */
 	libc.tls_size = sizeof builtin_tls;
 	libc.tls_align = tls_align;
-	if (__init_tp(__copy_tls((void *)builtin_tls)) < 0) {
-		a_crash();
-	}
+	// if (__init_tp(__copy_tls((void *)builtin_tls)) < 0) {
+	// 	a_crash();
+	// }
 
 	// We don't call __dls3 here. Once we've got here, we're safe enough to
 	// init LKL, after which we can then run stage 3.

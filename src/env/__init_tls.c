@@ -14,17 +14,11 @@ int __init_tp(void *p)
 {
 	pthread_t td = p;
 	td->self = td;
-	if (sgxlkl_enclave->mode == SW_DEBUG_MODE)
+
+	if (sgxlkl_in_sw_debug_mode())
 	{
-		if (sgxlkl_in_sw_debug_mode())
-		{
-			int r = __set_thread_area(TP_ADJ(p));
-			if (r < 0)
-			{
-				sgxlkl_fail("Could not set thread area %p: %s\n", p, strerror(errno));
-			}
-		}
-		else
+		int r = __set_thread_area(TP_ADJ(p));
+		if (r < 0)
 		{
 			sgxlkl_fail("Could not set thread area %p: %s\n", p, strerror(errno));
 		}
