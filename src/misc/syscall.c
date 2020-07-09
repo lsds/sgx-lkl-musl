@@ -5,7 +5,6 @@
 #include <assert.h>
 
 #include "enclave/enclave_util.h"
-#include "lkl/lkl_util.h"
 
 #undef syscall
 

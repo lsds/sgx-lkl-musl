@@ -5,8 +5,6 @@
 #include <stdio.h>
 #include <limits.h>
 
-#include "enclave/sgxlkl_config.h"
-
 struct __locale_map;
 
 struct __locale_struct {
@@ -24,7 +22,6 @@ struct __libc {
 	int threaded;
 	int secure;
 	int user_tls_enabled;
-	void *vvar_base;
 	volatile int threads_minus_1;
 	size_t *auxv;
 	struct tls_module *tls_head;
