@@ -64,38 +64,23 @@ static inline long __filter_syscall2(long n, long a1, long a2) {
 
 	long params[6] = {0};
 
-	if (n == SYS_munmap) {
-		long res = (long)syscall_SYS_munmap((void*)a1, (size_t)a2);
-		__sgxlkl_log_syscall(SGXLKL_INTERNAL_SYSCALL, n, res, 2, a1, a2);
-		return res;
-	} else {
-		params[0] = a1;
-		params[1] = a2;
-		long res = lkl_syscall(n, params);
+	params[0] = a1;
+	params[1] = a2;
+	long res = lkl_syscall(n, params);
 
-		return res;
-	}
+	return res;
 }
 
 static inline long __filter_syscall3(long n, long a1, long a2, long a3) {
 
 	long params[6] = {0};
 
-	if (n == SYS_msync) {
-		return (long)syscall_SYS_msync((void*)a1, (size_t)a2, (int)a3);
-	} else if (n == SYS_mprotect) {
-		int ret;
-		sgxlkl_host_syscall_mprotect(&ret, (void*)a1, (size_t)a2, (int)a3);
-		return (long)ret;
-	} else {
+	params[0] = a1;
+	params[1] = a2;
+	params[2] = a3;
+	long res = lkl_syscall(n, params);
 
-		params[0] = a1;
-		params[1] = a2;
-		params[2] = a3;
-		long res = lkl_syscall(n, params);
-
-		return res;
-	}
+	return res;
 }
 
 static inline long __filter_syscall4(long n, long a1, long a2, long a3, long a4) {
@@ -115,41 +100,29 @@ static inline long __filter_syscall5(long n, long a1, long a2, long a3, long a4,
 
 	long params[6] = {0};
 
-	if (n == SYS_mremap) {
-		long res = (long)syscall_SYS_mremap((void*)a1, (size_t)a2, (size_t)a3, (int)a4, (void*)a5);
-		__sgxlkl_log_syscall(SGXLKL_INTERNAL_SYSCALL, n, res, 5, a1, a2, a3, a4, a5);
-		return res;
-	} else {
-		params[0] = a1;
-		params[1] = a2;
-		params[2] = a3;
-		params[3] = a4;
-		params[4] = a5;
-		long res = lkl_syscall(n, params);
+	params[0] = a1;
+	params[1] = a2;
+	params[2] = a3;
+	params[3] = a4;
+	params[4] = a5;
+	long res = lkl_syscall(n, params);
 
-		return res;
-	}
+	return res;
 }
 
 static inline long __filter_syscall6(long n, long a1, long a2, long a3, long a4, long a5, long a6) {
 
 	long params[6] = {0};
 
-	if (n == SYS_mmap) {
-			long res = (long)syscall_SYS_mmap((void*)a1, (size_t)a2, (int)a3, (int)a4, (int)a5, (off_t)a6);
-			__sgxlkl_log_syscall(SGXLKL_INTERNAL_SYSCALL, n, res, 6, a1, a2, a3, a4, a5, a6);
-			return res;
-	} else {
-		params[0] = a1;
-		params[1] = a2;
-		params[2] = a3;
-		params[3] = a4;
-		params[4] = a5;
-		params[5] = a6;
-		long res = lkl_syscall(n, params);
+	params[0] = a1;
+	params[1] = a2;
+	params[2] = a3;
+	params[3] = a4;
+	params[4] = a5;
+	params[5] = a6;
+	long res = lkl_syscall(n, params);
 
-		return res;
-	}
+	return res;
 }
 
 #define __filter_syscall0(n) __filter_syscall0(n)
