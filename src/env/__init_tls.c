@@ -18,10 +18,7 @@ int __init_tp(void *p)
 	if (sgxlkl_in_sw_debug_mode())
 	{
 		int r = __set_thread_area(TP_ADJ(p));
-		if (r < 0)
-		{
-			sgxlkl_fail("Could not set thread area %p: %s\n", p, strerror(errno));
-		}
+		if (r < 0) return -1;
 	}
 	else
 	{

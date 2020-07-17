@@ -1038,6 +1038,8 @@ typedef struct {
 
 #define AT_MINSIGSTKSZ		51
 
+// SGX-LKL specific entries
+#define AT_HW_MODE 100 // a_val == 1 if sgx-lkl running in hw mode
 
 typedef struct {
   Elf32_Word n_namesz;

@@ -1776,6 +1776,9 @@ void *__dls2b(size_t *sp)
 	// if (__init_tp(__copy_tls((void *)builtin_tls)) < 0) {
 	// 	a_crash();
 	// }
+	/* This is set here so that userspace components of LKL setup can
+	 * create threads */
+	libc.can_do_threads = 1;
 
 	// We don't call __dls3 here. Once we've got here, we're safe enough to
 	// init LKL, after which we can then run stage 3.
@@ -1812,9 +1815,15 @@ prepare_stack_and_jmp_to_exec(void *at_entry, elf64_stack_t *stack, void *tos) {
 
 	tosptr = (char**)tos;
 
-	// provide empty auxv
-	*(tosptr--) = NULL;
-	*(tosptr--) = AT_NULL;
+	// copy auxv
+	base = t = (char **)stack->auxv;
+	while (*t) { t+=2; } // find AT_NULL entry
+	t++;
+	while (t >= base) {
+		*(tosptr--) = *(t--);
+	}
+	*(tosptr--) = (char*) app_entry;
+	*(tosptr--) = (char*) AT_ENTRY;
 
 	// copy envp
 	base = t = stack->envp;
@@ -1844,7 +1853,7 @@ prepare_stack_and_jmp_to_exec(void *at_entry, elf64_stack_t *stack, void *tos) {
 void __dls3(elf64_stack_t *stack, void *tos)
 {
 	static struct dso app, vdso;
-	size_t aux[AUX_CNT], *auxv;
+	void *at_entry;
 	size_t i;
 	char *env_preload=0;
 	char *replace_argv0=0;
@@ -1852,9 +1861,6 @@ void __dls3(elf64_stack_t *stack, void *tos)
 	int argc = stack->argc;
 	char **argv = stack->argv;
 	char **envp = stack->envp;
-
-	auxv = libc.auxv;
-	decode_vec(auxv, aux, AUX_CNT);
 
 	/* Only trust user/env if kernel says we're not suid/sgid */
 	if (!libc.secure) {
@@ -1878,7 +1884,7 @@ void __dls3(elf64_stack_t *stack, void *tos)
 	}
 	close(fd);
 	app.name = argv[0];
-	aux[AT_ENTRY] = (size_t)laddr(&app, ehdr->e_entry);
+	at_entry = laddr(&app, ehdr->e_entry);
 
 	if (app.tls.size) {
 		libc.tls_head = tls_tail = &app.tls;
@@ -2000,7 +2006,7 @@ void __dls3(elf64_stack_t *stack, void *tos)
 
 	errno = 0;
 
-	prepare_stack_and_jmp_to_exec((void *)aux[AT_ENTRY], stack, tos);
+	prepare_stack_and_jmp_to_exec(at_entry, stack, tos);
 }
 
 static void prepare_lazy(struct dso *p)
