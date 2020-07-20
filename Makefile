@@ -70,8 +70,9 @@ ALL_INCLUDES = $(sort $(INCLUDES:$(srcdir)/%=%) $(GENH:obj/%=%) $(ARCH_INCLUDES:
 EMPTY_LIB_NAMES = m rt pthread crypt util xnet resolv dl
 EMPTY_LIBS = $(EMPTY_LIB_NAMES:%=lib/lib%.a)
 CRT_LIBS = $(addprefix lib/,$(notdir $(CRT_OBJS)))
+STATIC_LIBS = lib/libc.a
 SHARED_LIBS = lib/libsgxlkl.so
-ALL_LIBS = $(CRT_LIBS) $(SHARED_LIBS) $(EMPTY_LIBS) 
+ALL_LIBS = $(CRT_LIBS) $(STATIC_LIBS) $(SHARED_LIBS) $(EMPTY_LIBS) 
 ALL_TOOLS = obj/musl-gcc
 
 WRAPCC_GCC = gcc
@@ -199,6 +200,11 @@ lib/libsgxlkl.so: $(LOBJS) $(LDSO_OBJS) $(lkllib) $(sgxlkllib) $(sgxlkllibs)
 # $(CFLAGS_ALL) $(LDFLAGS_ALL) 
 #	$(CC) $(CFLAGS_ALL) $(LDFLAGS_ALL) -nostdlib -shared -Wl,-z,defs -Wl,-e,_dlstart_c \ 
 # -o $@ lib/sgxcrt.o $(LOBJS) obj/sgxlkl/*.o $(LDSO_OBJS) $(LIBCC) $(sgxlkllibs) $(lkllib) 
+
+lib/libc.a: $(AOBJS)
+	rm -f $@
+	$(AR) rc $@ $(AOBJS)
+	$(RANLIB) $@
 
 $(EMPTY_LIBS):
 	rm -f $@
