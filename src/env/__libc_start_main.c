@@ -25,12 +25,18 @@ struct timespec sgxlkl_app_starttime;
 #ifdef __GNUC__
 __attribute__((__noinline__))
 #endif
+
+void __init_heap_from_libc()
+{
+	uint64_t *buf = malloc(8);
+}
+
 void __init_libc(char **envp, char *pn)
 {
-    size_t i, *auxv, aux[AUX_CNT] = { 0 };
-    __environ = envp;
-    for (i=0; envp[i]; i++);
-    libc.auxv = auxv = (void *)(envp+i+1);
+	size_t i, *auxv, aux[AUX_CNT] = { 0 };
+	__environ = envp;
+	for (i=0; envp[i]; i++);
+	libc.auxv = auxv = (void *)(envp+i+1);
 	for (i=0; auxv[i]; i+=2) if (auxv[i]<AUX_CNT) aux[auxv[i]] = auxv[i+1];
 	__hwcap = aux[AT_HWCAP];
 	__sysinfo = aux[AT_SYSINFO];
