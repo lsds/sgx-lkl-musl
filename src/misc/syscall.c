@@ -1,5 +1,6 @@
 #define _BSD_SOURCE
 #include <unistd.h>
+#include <sys/epoll.h>
 #include "syscall.h"
 #include <stdarg.h>
 #include <assert.h>
@@ -404,7 +405,13 @@ static long redirect_syscall(long n,
 		params_len = 2;
 		res = dup2(a, b);
 		break;
-	default:
+    case 232 /* SYS_epoll_wait */:
+        // LKL does not support SYS_epoll_wait but it includes SYS_epoll_pwait, which can
+		// be made to behave equivalently.
+        params_len = 4;
+        res = epoll_pwait(a, (struct epoll_event*)b, c, d, 0);
+        break;
+    default:
 		sgxlkl_warn("x86-64 syscall %d has no known mapping\n", n);
 	}
 
