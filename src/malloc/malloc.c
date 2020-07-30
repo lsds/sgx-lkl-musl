@@ -292,7 +292,7 @@ void *malloc(size_t n)
 	if (n > MMAP_THRESHOLD) {
 		size_t len = n + OVERHEAD + PAGE_SIZE - 1 & -PAGE_SIZE;
 		char *base = enclave_mmap(0, len, 0, PROT_READ|PROT_WRITE, 1);
-		if (base == (void *)-1) return 0;
+		if (base < 0) return 0;
 		c = (void *)(base + SIZE_ALIGN - OVERHEAD);
 		c->csize = len - (SIZE_ALIGN - OVERHEAD);
 		c->psize = SIZE_ALIGN - OVERHEAD;
