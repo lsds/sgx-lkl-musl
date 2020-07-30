@@ -67,7 +67,7 @@ void *__expand_heap(size_t *pn)
 	size_t min = (size_t)PAGE_SIZE << mmap_step/2;
 	if (n < min) n = min;
 	void *area = enclave_mmap(0, n, 0, PROT_READ|PROT_WRITE, 1);
-	if (((intptr_t))area) < 0) return 0;
+	if (((intptr_t)area) < 0) return 0;
 	*pn = n;
 	mmap_step++;
 	return area;
