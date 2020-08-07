@@ -54,9 +54,4 @@ extern hidden const char __libc_version[];
 hidden void __synccall(void (*)(void *), void *);
 hidden int __setxid(int, int, int, int);
 
-// tests/overlay seems to work only if 
-// enclave_mmap is invoked first from libc
-// This is a temporary mitigation and should be removed
-// once the issue is root caused and fixed.
-hidden void __init_heap_from_libc();
 #endif
