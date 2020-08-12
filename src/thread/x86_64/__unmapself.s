@@ -3,7 +3,7 @@
 .global __unmapself
 .type   __unmapself,@function
 __unmapself:
-	subq $4*8, %rsp
+	subq $5*8, %rsp
 	push %rsi
 	push %rdi
 	mov %rsp, %rsi
