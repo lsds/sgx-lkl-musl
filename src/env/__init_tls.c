@@ -7,22 +7,28 @@
 #include "libc.h"
 #include "atomic.h"
 #include "syscall.h"
-#include <enclave/enclave_oe.h>
-#include <enclave/enclave_util.h>
 
+static int enclave_in_hw_mode(){
+	size_t i, *auxv;
+	auxv = libc.auxv;
+	for (i=0; auxv[i]; i+=2) if (auxv[i] == AT_HW_MODE) return auxv[i+1];
+	// crash out if we can't parse AT_HW_MODE from libc.auxv on stack
+	a_crash();
+	return -1;
+}
 int __init_tp(void *p)
 {
 	pthread_t td = p;
 	td->self = td;
 
-	if (sgxlkl_in_sw_debug_mode())
+	if (enclave_in_hw_mode())
 	{
-		int r = __set_thread_area(TP_ADJ(p));
-		if (r < 0) return -1;
+		__asm__ volatile("wrfsbase %0" ::"r"(p));
 	}
 	else
 	{
-		__asm__ volatile("wrfsbase %0" ::"r"(p));
+		int r = __set_thread_area(TP_ADJ(p));
+		if (r < 0) return -1;
 	}
 	//int r = __set_thread_area(TP_ADJ(p));
 	//if (r < 0) return -1;
