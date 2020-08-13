@@ -25,6 +25,17 @@ struct timespec sgxlkl_app_starttime;
 #ifdef __GNUC__
 __attribute__((__noinline__))
 #endif
+
+static void set_enclave_mode(size_t* auxv) {
+	size_t i;
+	for (i=0; auxv[i]; i+=2) if (auxv[i] == AT_HW_MODE) {
+		__is_enclave_in_hw_mode = auxv[i+1];
+		return;
+	}
+	// crash out if we can't parse AT_HW_MODE from auxv on stack
+	a_crash();
+}
+
 void __init_libc(char **envp, char *pn)
 {
 	size_t i, *auxv, aux[AUX_CNT] = { 0 };
@@ -35,6 +46,7 @@ void __init_libc(char **envp, char *pn)
 	__hwcap = aux[AT_HWCAP];
 	__sysinfo = aux[AT_SYSINFO];
 	libc.page_size = aux[AT_PAGESZ];
+	set_enclave_mode(auxv);
 
 	if (!pn) pn = (void*)aux[AT_EXECFN];
 	if (!pn) pn = "";

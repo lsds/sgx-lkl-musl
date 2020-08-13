@@ -47,6 +47,7 @@ hidden void __fork_handler(int);
 
 extern hidden size_t __hwcap;
 extern hidden size_t __sysinfo;
+extern hidden size_t __is_enclave_in_hw_mode;
 extern char *__progname, *__progname_full;
 
 extern hidden const char __libc_version[];
