@@ -3,5 +3,11 @@
 
 int tss_set(tss_t k, void *x)
 {
-	return lthread_setspecific(k, x) ? thrd_error : thrd_success;
+	struct pthread *self = __pthread_self();
+	/* Avoid unnecessary COW */
+	if (self->tsd[k] != x) {
+		self->tsd[k] = x;
+		self->tsd_used = 1;
+	}
+	return thrd_success;
 }

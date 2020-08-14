@@ -58,7 +58,6 @@ int __libc_sigaction(int sig, const struct sigaction *restrict sa, struct sigact
 			__block_all_sigs(&set);
 			LOCK(__abort_lock);
 		}
-
 		ksa.handler = sa->sa_handler;
 		ksa.flags = sa->sa_flags | SA_RESTORER;
 		ksa.restorer = (sa->sa_flags & SA_SIGINFO) ? __restore_rt : __restore;

@@ -4,8 +4,7 @@
 #include "syscall.h"
 #include <stdarg.h>
 #include <assert.h>
-
-#include "enclave/enclave_util.h"
+#include <stdlib.h>
 
 #undef syscall
 

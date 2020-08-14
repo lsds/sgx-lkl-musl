@@ -2,10 +2,10 @@
 #include "pthread_impl.h"
 #include <limits.h>
 
-void __do_orphaned_stdio_locks(struct lthread *lt)
+void __do_orphaned_stdio_locks()
 {
 	FILE *f;
-	for (f=lt->stdio_locks; f; f=f->next_locked)
+	for (f=__pthread_self()->stdio_locks; f; f=f->next_locked)
 		a_store(&f->lock, 0x40000000);
 }
 
@@ -18,7 +18,7 @@ void __unlist_locked_file(FILE *f)
 	}
 }
 
-void __register_locked_file(FILE *f, struct lthread *self)
+void __register_locked_file(FILE *f, pthread_t self)
 {
 	f->lockcount = 1;
 	f->prev_locked = 0;

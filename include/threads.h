@@ -8,7 +8,7 @@
 extern "C" {
 typedef unsigned long thrd_t;
 #else
-typedef struct lthread *thrd_t;
+typedef struct __pthread *thrd_t;
 #define thread_local _Thread_local
 #endif
 

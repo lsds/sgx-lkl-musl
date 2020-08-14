@@ -1,7 +1,6 @@
 #ifndef _PTHREAD_IMPL_H
 #define _PTHREAD_IMPL_H
 
-#include "enclave/lthread_int.h"
 #include <pthread.h>
 #include <signal.h>
 #include <errno.h>
@@ -14,10 +13,10 @@
 
 #define pthread __pthread
 
-struct schedctx {
+struct pthread {
 	/* Part 1 -- these fields may be external or
 	 * internal (accessed via asm) ABI. Do not change. */
-	struct schedctx *self;
+	struct pthread *self;
 	uintptr_t *dtv;
 	void *unused1, *unused2;
 	uintptr_t sysinfo;
@@ -57,7 +56,6 @@ struct schedctx {
 	 * the end of the structure is external and internal ABI. */
 	uintptr_t canary_at_end;
 	uintptr_t *dtv_copy;
-        struct lthread_sched sched;
 };
 
 struct start_sched_args {
@@ -79,31 +77,6 @@ enum {
 struct __timer {
 	int timerid;
 	pthread_t thread;
-};
-
-/* Thread Control Block (TCB) for lthreads */
-struct lthread_tcb_base {
-    void *self;
-    char _pad_0[32];
-    // SGX-LKL does not have full stack smashing protection (SSP) support right
-    // now. In particular, we do not generate a random stack guard for every
-    // new thread. However, when aplications are compiled with stack protection
-    // enabled, GCC makes certain assumptions about the Thread Control Block
-    // (TCB) layout. Among other things, it expects a read-only stack
-    // guard/canary value at an offset 0x28 (40 bytes) from the FS segment
-    // base/start of the TCB (see schedctx struct above).
-    uint64_t stack_guard_dummy; // Equivalent to schedctx->canary (see above).
-                                // canary2 is only used on the x32 arch, so we
-                                // ignore it here.
-    struct schedctx *schedctx;
-};
-
-/* Thread Control Block (TCB) for ethreads/the scheduler (schedctx) */
-struct sched_tcb_base {
-    void *self;
-    char _pad_0[32];
-    uint64_t stack_guard_dummy; // See struct lthread_tcb_base comment
-    struct schedctx *schedctx;
 };
 
 #define __SU (sizeof(size_t)/sizeof(int))
@@ -167,9 +140,7 @@ struct sched_tcb_base {
 void *__tls_get_addr(tls_mod_off_t *);
 hidden void *__tls_get_new(tls_mod_off_t *);
 hidden int __init_tp(void *);
-hidden int __init_utp(void *, int);;
 hidden void *__copy_tls(unsigned char *);
-hidden void *__copy_utls(struct lthread *, unsigned char *, size_t);
 hidden void __reset_tls();
 
 hidden void __dl_thread_cleanup(void);
@@ -199,41 +170,14 @@ static inline void __wake(volatile void *addr, int cnt, int priv)
 {
 	if (priv) priv = FUTEX_PRIVATE;
 	if (cnt<0) cnt = INT_MAX;
-	__syscall(SYS_futex, (int*)addr, FUTEX_WAKE|priv, cnt, 0, 0, 0) != -ENOSYS ||
-	__syscall(SYS_futex, (int*)addr, FUTEX_WAKE, cnt, 0, 0, 0);
+	__syscall(SYS_futex, addr, FUTEX_WAKE|priv, cnt) != -ENOSYS ||
+	__syscall(SYS_futex, addr, FUTEX_WAKE, cnt);
 }
-
 static inline void __futexwait(volatile void *addr, int val, int priv)
 {
 	if (priv) priv = FUTEX_PRIVATE;
-	__syscall(SYS_futex, addr, FUTEX_WAIT|priv, val, 0, 0, 0) != -ENOSYS ||
-	__syscall(SYS_futex, addr, FUTEX_WAIT, val, 0, 0, 0);
-}
-
-static inline struct lthread_sched*
-lthread_get_sched()
-{
-    struct schedctx *c = __scheduler_self();
-    return &c->sched;
-}
-
-
-static inline uint64_t timespec_to_lttimeout(const struct timespec *at)
-{
-        struct timeval tv;
-        uint64_t now, then;
-        if (at) {
-                gettimeofday(&tv, NULL);
-                now = tv.tv_sec * 1000 + tv.tv_usec / 1000;
-                then = at->tv_sec * 1000 + at->tv_nsec / 1000000;
-                return then > now ? then - now : WAIT_TIMEOUT;
-        }
-        return WAIT_LIMITLESS;
-}
-
-static inline struct lthread *__pthread_self()
-{
-        return lthread_self();
+	__syscall(SYS_futex, addr, FUTEX_WAIT|priv, val, 0) != -ENOSYS ||
+	__syscall(SYS_futex, addr, FUTEX_WAIT, val, 0);
 }
 
 hidden void __acquire_ptc(void);

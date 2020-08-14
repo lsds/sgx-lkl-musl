@@ -1,8 +1,8 @@
 #ifndef _INTERNAL_SYSCALL_H
 #define _INTERNAL_SYSCALL_H
 
+#include <errno.h>
 #include <features.h>
-#include <enclave/lthread.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <sys/syscall.h>
@@ -41,14 +41,8 @@ hidden long __syscall_ret(unsigned long), __syscall(syscall_arg_t, ...),
 static inline long __filter_syscall0(long n) {
 
 	long params[6] = {0};
-	if (n == SYS_gettid) {
-		long res = (long)lthread_id();
-		__sgxlkl_log_syscall(SGXLKL_INTERNAL_SYSCALL, n, res, 0);
-		return res;
-	} else {
-		long res = lkl_syscall(n, params);
-		return res;
-	}
+	long res = lkl_syscall(n, params);
+	return res;
 }
 
 static inline long __filter_syscall1(long n, long a1) {

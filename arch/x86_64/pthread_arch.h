@@ -1,7 +1,7 @@
-static inline struct schedctx *__scheduler_self()
+static inline struct pthread *__pthread_self()
 {
-	struct schedctx *self;
-	__asm__ __volatile__ ("mov %%fs:48,%0" : "=r" (self) );
+	struct pthread *self;
+	__asm__ ("mov %%fs:0,%0" : "=r" (self) );
 	return self;
 }
 
