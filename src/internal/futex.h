@@ -23,6 +23,8 @@
  */
 #define FUTEX_BITSET_MATCH_ANY  0xffffffff
 
+void futex_init(void);
+
 void futex_tick(void);
 
 #endif
