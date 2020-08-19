@@ -8,7 +8,6 @@
 #include <atomic.h>
 #include <libc.h>
 #include <string.h>
-#include "shared/env.h"
 
 static void dummy(void) {}
 weak_alias(dummy, _init);
