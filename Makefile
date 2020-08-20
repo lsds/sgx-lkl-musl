@@ -187,7 +187,7 @@ lib/libsgxlkl.so: $(LOBJS) $(LDSO_OBJS) $(lkllib) $(sgxlkllib) $(sgxlkllibs) mus
 
 # Capture all MUSL objects in this file (included by ./user/Makefile)
 muslobjs:
-	echo "MUSL_OBJECTS = $(addprefix $(CURDIR)/,$(LOBJS) $(LDSO_OBJS))" > muslobjs.mak
+	@ echo "MUSL_OBJECTS = $(addprefix $(CURDIR)/,$(LOBJS) $(LDSO_OBJS))" > muslobjs.mak
 
 # Original OE linking options:
 #	-nostdlib -nodefaultlibs -nostartfiles -Wl,--no-undefined -Wl,-Bstatic -Wl,-Bsymbolic -Wl,--export-dynamic -Wl,-pie -Wl,--build-id -Wl,-z,noexecstack -Wl,-z,now 
