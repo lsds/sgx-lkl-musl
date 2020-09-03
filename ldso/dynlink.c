@@ -688,7 +688,7 @@ static void __gdb_load_debug_symbols(int fd, struct dso *dso, Ehdr *eh)
 
 	char buf[30];
 	char linkname[PATH_MAX] = {0};
-
+	__gdb_load_debug_symbols_alive = 1;
 	if (!__gdb_load_debug_symbols_alive) return;
 
 	/* try to reverse-engineer the filename we're loading from */
