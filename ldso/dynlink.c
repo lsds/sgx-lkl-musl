@@ -668,7 +668,7 @@ __gdb_hook_load_debug_symbols_from_file_wrap(struct dso *dso, char *libpath)
 
 
 /* can't be static, we need to keep the symbol alive */
-int __gdb_load_debug_symbols_alive = 0;
+int __gdb_get_load_debug_symbols_alive();
 
 /* sgx-lkl hooks for loading debug symbols */
 static void __gdb_load_debug_symbols(int fd, struct dso *dso, Ehdr *eh)
@@ -688,8 +688,7 @@ static void __gdb_load_debug_symbols(int fd, struct dso *dso, Ehdr *eh)
 
 	char buf[30];
 	char linkname[PATH_MAX] = {0};
-	__gdb_load_debug_symbols_alive = 1;
-	if (!__gdb_load_debug_symbols_alive) return;
+	if (!__gdb_get_load_debug_symbols_alive()) return;
 
 	/* try to reverse-engineer the filename we're loading from */
 	/* warning: this is racy! */
