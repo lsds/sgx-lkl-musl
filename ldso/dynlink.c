@@ -652,18 +652,23 @@ static void unmap_library(struct dso *dso)
 	}
 }
 
-void __attribute__ ((noinline)) __gdb_hook_load_debug_symbols(struct dso *dso, void *symmem, ssize_t symsz)
+void __attribute__((noinline)) __attribute__((__weak__))
+__gdb_hook_load_debug_symbols_wrap(struct dso *dso, void *symmem, ssize_t symsz)
 {
-	__asm__ volatile ("" : : "m" (dso), "m" (symmem), "m" (symsz));
+    /* this is overriden in user space by sgx-lkl/src/user/enter.c */
+    sgxlkl_warn("*************** weak: %s\n", __FUNCTION__);
 }
 
-void __attribute__ ((noinline)) __gdb_hook_load_debug_symbols_from_file(struct dso *dso, char *libpath)
+void __attribute__((noinline)) __attribute__((__weak__))
+__gdb_hook_load_debug_symbols_from_file_wrap(struct dso *dso, char *libpath)
 {
-	__asm__ volatile ("" : : "m" (dso), "m" (libpath));
+    /* this is overriden in user space by sgx-lkl/src/user/enter.c */
+    sgxlkl_warn("*************** weak: %s\n", __FUNCTION__);
 }
+
 
 /* can't be static, we need to keep the symbol alive */
-int __gdb_load_debug_symbols_alive = 0;
+int __gdb_get_load_debug_symbols_alive();
 
 /* sgx-lkl hooks for loading debug symbols */
 static void __gdb_load_debug_symbols(int fd, struct dso *dso, Ehdr *eh)
@@ -683,8 +688,7 @@ static void __gdb_load_debug_symbols(int fd, struct dso *dso, Ehdr *eh)
 
 	char buf[30];
 	char linkname[PATH_MAX] = {0};
-
-	if (!__gdb_load_debug_symbols_alive) return;
+	if (!__gdb_get_load_debug_symbols_alive()) return;
 
 	/* try to reverse-engineer the filename we're loading from */
 	/* warning: this is racy! */
@@ -823,7 +827,7 @@ foundpath:
 		size_t path_len = strlen(debugmount) + strlen(debugpath);
 		char debugmountpath[path_len + 1];
 		snprintf(debugmountpath, path_len + 1, "%s%s", debugmount, debugpath);
-		__gdb_hook_load_debug_symbols_from_file(dso, debugmountpath);
+		__gdb_hook_load_debug_symbols_from_file_wrap(dso, debugmountpath);
 	} else {
 		/* allocate memory for the symbols */
 		symmem = malloc(fdstat.st_size);
@@ -841,7 +845,7 @@ foundpath:
 		}
 
 		/* invoke gdb */
-		__gdb_hook_load_debug_symbols(dso, symmem, fdstat.st_size);
+		__gdb_hook_load_debug_symbols_wrap(dso, symmem, fdstat.st_size);
 	}
 
 fail:

@@ -175,7 +175,7 @@ obj/%.lo: $(srcdir)/%.c $(GENH) $(IMPH)
 
 # LDFLAGS_AUTO = -Wl,--sort-section,alignment -Wl,--sort-common -Wl,--gc-sections -Wl,--hash-style=both -Wl,--no-undefined -Wl,--exclude-libs=ALL -Wl,--dynamic-list=./dynamic.list
 
-lib/libsgxlkl.so: $(LOBJS) $(LDSO_OBJS) $(lkllib) $(sgxlkllib) $(sgxlkllibs)
+lib/libsgxlkl.so: $(LOBJS) $(LDSO_OBJS) $(lkllib) $(sgxlkllib) $(sgxlkllibs) muslobjs
 	@mkdir -p obj/sgxlkl
 	@echo "AR $@"
 	@cd obj/sgxlkl/; ar -x $(sgxlkllib)
@@ -184,6 +184,10 @@ lib/libsgxlkl.so: $(LOBJS) $(LDSO_OBJS) $(lkllib) $(sgxlkllib) $(sgxlkllibs)
 	-o $@ $(LOBJS) obj/sgxlkl/*.o ./libgcov_musl.a $(LDSO_OBJS) $(LIBCC) $(sgxlkllibs) $(lkllib) \
 	-Wl,-Bstatic -Wl,-Bsymbolic -Wl,--export-dynamic -Wl,-pie -Wl,--build-id -Wl,-z,noexecstack -Wl,-z,now  \
 	-L$(OE_SDK_LIBS)/openenclave/enclave -loeenclave -loecryptombed -lmbedx509 -lmbedcrypto -loesyscall -loecore
+
+# Capture all MUSL objects in this file (included by ./user/Makefile)
+muslobjs:
+	@ echo "MUSL_OBJECTS = $(addprefix $(CURDIR)/,$(LOBJS) $(LDSO_OBJS))" > muslobjs.mak
 
 # Original OE linking options:
 #	-nostdlib -nodefaultlibs -nostartfiles -Wl,--no-undefined -Wl,-Bstatic -Wl,-Bsymbolic -Wl,--export-dynamic -Wl,-pie -Wl,--build-id -Wl,-z,noexecstack -Wl,-z,now 
