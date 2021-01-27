@@ -599,18 +599,6 @@ tryldflag LDFLAGS_AUTO -Wl,--hash-style=both
 # runtime library; implementation error is also a possibility.
 tryldflag LDFLAGS_AUTO -Wl,--no-undefined
 
-# Avoid exporting symbols from compiler runtime libraries. They
-# should be hidden anyway, but some toolchains including old gcc
-# versions built without shared library support and pcc are broken.
-tryldflag LDFLAGS_AUTO -Wl,--exclude-libs=ALL
-
-# Public data symbols must be interposable to allow for copy
-# relocations, but otherwise we want to bind symbols at libc link
-# time to eliminate startup relocations and PLT overhead. Use
-# --dynamic-list rather than -Bsymbolic-functions for greater
-# control over what symbols are left unbound.
-tryldflag LDFLAGS_AUTO -Wl,--dynamic-list="$srcdir/dynamic.list"
-
 # Find compiler runtime library
 test -z "$LIBCC" && tryldflag LIBCC -lgcc && tryldflag LIBCC -lgcc_eh
 test -z "$LIBCC" && tryldflag LIBCC -lcompiler_rt

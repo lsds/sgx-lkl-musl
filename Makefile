@@ -173,14 +173,14 @@ obj/%.lo: $(srcdir)/%.c $(GENH) $(IMPH)
 #              -g -pipe -fno-unwind-tables -fno-asynchronous-unwind-tables -ffunction-sections -fdata-sections -Werror=implicit-function-declaration \ 
 #              -Werror=implicit-int -Werror=pointer-sign -Werror=pointer-arith -fPIC -D__USE_GNU -O3  -DDL_NOMMU_SUPPORT=1
 
-# LDFLAGS_AUTO = -Wl,--sort-section,alignment -Wl,--sort-common -Wl,--gc-sections -Wl,--hash-style=both -Wl,--no-undefined -Wl,--exclude-libs=ALL -Wl,--dynamic-list=./dynamic.list
+# LDFLAGS_AUTO = -Wl,--sort-section,alignment -Wl,--sort-common -Wl,--gc-sections -Wl,--hash-style=both -Wl,--no-undefined
 
 lib/libsgxlkl.so: $(LOBJS) $(LDSO_OBJS) $(lkllib) $(sgxlkllib) $(sgxlkllibs) muslobjs
 	@mkdir -p obj/sgxlkl
 	@echo "AR $@"
 	@cd obj/sgxlkl/; ar -x $(sgxlkllib)
 	@echo "LD $@"
-	@$(CC) -Wl,--sort-section,alignment -Wl,--sort-common -Wl,--gc-sections -Wl,--hash-style=both -Wl,--no-undefined -Wl,--exclude-libs=ALL -Wl,--dynamic-list=./dynamic.list -nostdlib -nodefaultlibs -nostartfiles \
+	@$(CC) -Wl,--sort-section,alignment -Wl,--sort-common -Wl,--gc-sections -Wl,--hash-style=both -Wl,--no-undefined -nostdlib -nodefaultlibs -nostartfiles \
 	-o $@ $(LOBJS) obj/sgxlkl/*.o ./libgcov_musl.a $(LDSO_OBJS) $(LIBCC) $(sgxlkllibs) $(lkllib) \
 	-Wl,-Bstatic -Wl,-Bsymbolic -Wl,--export-dynamic -Wl,-pie -Wl,--build-id -Wl,-z,noexecstack -Wl,-z,now  \
 	-L$(OE_SDK_LIBS)/openenclave/enclave -loeenclave -loecryptombed -lmbedx509 -lmbedcrypto -loesyscall -loecore
